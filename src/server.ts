@@ -1,0 +1,141 @@
+import { readFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join, basename } from "node:path";
+import type { ServerWebSocket } from "bun";
+import { listVariants, getVariant } from "./persona.js";
+import { Variant } from "./variant.js";
+
+/**
+ * Web chat UI for the variants.
+ *
+ * Layout:
+ *   GET  /            -> the single-page chat app (sidebar of variants + chat pane)
+ *   GET  /variants    -> JSON list of {id, name, emoji, avatar} for the sidebar
+ *   GET  /pics/<file> -> a profile pic from profile-pics/
+ *   WS   /ws?variant=<id> -> a live chat session backed by one Variant for that persona
+ *
+ * One websocket == one chat thread == one long-lived Variant. The browser keeps a
+ * separate socket (and message history) per variant, so you can flip between threads
+ * like a messaging app.
+ */
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(__dirname, "..");
+const picsDir = join(repoRoot, "profile-pics");
+
+const workdir = process.env.ANDREW_WORKDIR || process.cwd();
+const model = process.env.ANDREW_MODEL ?? "sonnet";
+const port = Number(process.env.PORT ?? 3000);
+
+if (!process.env.CLAUDE_CODE_OAUTH_TOKEN && !process.env.ANTHROPIC_API_KEY) {
+  console.error(
+    "Set CLAUDE_CODE_OAUTH_TOKEN (run `claude setup-token` to use your Claude\n" +
+      "subscription) or ANTHROPIC_API_KEY (pay-as-you-go). See .env.example.",
+  );
+  process.exit(1);
+}
+
+const html = readFileSync(join(__dirname, "web", "index.html"), "utf8");
+
+// Public summary of each variant for the sidebar (no system prompt leaked).
+const variantList = listVariants().map((v) => ({
+  id: v.id,
+  name: v.name,
+  emoji: v.emoji,
+  avatar: `/pics/${v.avatar}`,
+}));
+
+const PIC_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+};
+
+// Per-connection state: each socket owns one Variant.
+type WSData = { id: string };
+const sessions = new Map<ServerWebSocket<WSData>, Variant>();
+
+const server = Bun.serve<WSData>({
+  port,
+  fetch(req, server) {
+    const url = new URL(req.url);
+
+    if (url.pathname === "/ws") {
+      const id = url.searchParams.get("variant") ?? "muppet";
+      // Hand the chosen variant id to the websocket handler via upgrade data.
+      return server.upgrade(req, { data: { id } })
+        ? undefined
+        : new Response("websocket upgrade failed", { status: 426 });
+    }
+
+    if (url.pathname === "/" || url.pathname === "/index.html") {
+      return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
+    }
+
+    if (url.pathname === "/variants") {
+      return Response.json(variantList);
+    }
+
+    if (url.pathname.startsWith("/pics/")) {
+      // basename() strips any path traversal; only serve from picsDir.
+      const file = basename(url.pathname.slice("/pics/".length));
+      const full = join(picsDir, file);
+      const ext = file.split(".").pop()?.toLowerCase() ?? "";
+      if (existsSync(full) && PIC_TYPES[ext]) {
+        return new Response(Bun.file(full), { headers: { "content-type": PIC_TYPES[ext] } });
+      }
+      return new Response("not found", { status: 404 });
+    }
+
+    return new Response("not found", { status: 404 });
+  },
+  websocket: {
+    open(ws) {
+      const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
+
+      ws.send(
+        JSON.stringify({
+          kind: "meta",
+          id: identity.id,
+          name: identity.name,
+          emoji: identity.emoji,
+          avatar: `/pics/${identity.avatar}`,
+          workdir,
+        }),
+      );
+
+      const variant = new Variant(identity, { workdir, model });
+      sessions.set(ws, variant);
+
+      // Forward every variant event to the browser. run() resolves only on stop().
+      variant
+        .run((e) => {
+          try {
+            ws.send(JSON.stringify(e));
+          } catch {
+            // socket already closed mid-stream; nothing to do.
+          }
+        })
+        .catch((err) =>
+          ws.send(
+            JSON.stringify({ kind: "error", error: err instanceof Error ? err.message : String(err) }),
+          ),
+        );
+    },
+    message(ws, raw) {
+      const text = (typeof raw === "string" ? raw : raw.toString()).trim();
+      if (text) sessions.get(ws)?.send(text);
+    },
+    close(ws) {
+      sessions.get(ws)?.stop();
+      sessions.delete(ws);
+    },
+  },
+});
+
+console.log(`🧬  Variants web UI`);
+console.log(`working in: ${workdir}`);
+console.log(`variants: ${variantList.map((v) => v.name).join(", ")}`);
+console.log(`open: http://localhost:${server.port}`);
