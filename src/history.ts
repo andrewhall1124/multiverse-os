@@ -31,6 +31,11 @@ export function appendMessage(variantId: string, msg: PersistedMessage): void {
   writeFileSync(historyPath(variantId), JSON.stringify(history, null, 2));
 }
 
+export function clearHistory(variantId: string): void {
+  if (!existsSync(dataDir)) return;
+  writeFileSync(historyPath(variantId), "[]");
+}
+
 // Format the last `limit` chat turns as a transcript for model context injection.
 export function formatTranscript(history: PersistedMessage[], limit = 100): string {
   const chat = history.filter((m) => m.role === "user" || m.role === "assistant").slice(-limit);
