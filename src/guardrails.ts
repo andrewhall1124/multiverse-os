@@ -36,8 +36,6 @@ const DESTRUCTIVE: { pattern: RegExp; why: string }[] = [
 const WRITE_TOOLS: Record<string, string> = {
   Write: "file_path",
   Edit: "file_path",
-  MultiEdit: "file_path",
-  NotebookEdit: "notebook_path",
 };
 
 function pushesToProtectedBranch(cmd: string): string | null {
