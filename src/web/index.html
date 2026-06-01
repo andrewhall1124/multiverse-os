@@ -261,6 +261,7 @@
         </span>
         <span class="wordmark">multiverse<span class="dim">-os</span></span>
         <button id="themeToggle" type="button" title="Toggle theme (system / light / dark)" aria-label="Toggle theme"></button>
+        <button id="notifTest" type="button" title="Send a test notification">Test notif</button>
       </div>
       <h1>Variants</h1>
       <div id="variants"></div>
@@ -498,6 +499,15 @@
         if (Notification.permission !== "granted") return;
         new Notification(title, { body, icon: "/profile-pics/greek-andrew.png", silent: false });
       }
+
+      document.getElementById("notifTest").addEventListener("click", async () => {
+        if (Notification.permission === "default") await Notification.requestPermission();
+        if (Notification.permission !== "granted") {
+          alert(`Notification permission is "${Notification.permission}". Check your browser/OS notification settings.`);
+          return;
+        }
+        new Notification("Test notification", { body: "Notifications are working.", icon: "/profile-pics/greek-andrew.png" });
+      });
 
       // Bootstrap: load the variant list, build the sidebar, open a socket per variant.
       if (Notification.permission === "default") Notification.requestPermission();
