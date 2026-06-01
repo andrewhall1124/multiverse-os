@@ -2,6 +2,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, basename } from "node:path";
 import type { ServerWebSocket } from "bun";
+import type { VariantIdentity } from "./persona.js";
 import { listVariants, getVariant } from "./persona.js";
 import { Variant } from "./variant.js";
 import { ensureVariantHome } from "./workspace.js";
@@ -59,6 +60,85 @@ type WSData = { id: string };
 const sessions = new Map<ServerWebSocket<WSData>, Variant>();
 // Accumulates the assistant's text for the current turn so we can persist it on turn_end.
 const assistantBuffers = new Map<ServerWebSocket<WSData>, string>();
+
+// Create a Variant from the current history and wire it up to forward events over ws.
+// Replaces any previously running Variant for this socket.
+function spawnVariant(ws: ServerWebSocket<WSData>, identity: VariantIdentity) {
+  const workdir = ensureVariantHome(identity.id);
+  const history = loadHistory(identity.id);
+  const transcript = formatTranscript(history);
+  const contextualIdentity =
+    transcript.length > 0
+      ? {
+          ...identity,
+          systemPromptAppend:
+            identity.systemPromptAppend +
+            "\n\n=== PRIOR CONVERSATION HISTORY ===\n" +
+            "The following is the conversation history from a previous session. " +
+            "Use it to maintain continuity:\n\n" +
+            transcript +
+            "\n\n[End of prior history. Continue the conversation naturally.]",
+        }
+      : identity;
+
+  const variant = new Variant(contextualIdentity, { workdir, model });
+  sessions.set(ws, variant);
+  assistantBuffers.set(ws, "");
+
+  variant
+    .run((e) => {
+      try {
+        // Guard: discard events from a variant that has since been replaced (e.g. after interrupt).
+        if (sessions.get(ws) !== variant) return;
+        ws.send(JSON.stringify(e));
+        if (e.kind === "text") {
+          assistantBuffers.set(ws, (assistantBuffers.get(ws) ?? "") + e.text);
+        } else if (e.kind === "progress") {
+          // Flush accumulated text before each tool call so history entries mirror
+          // the UI's per-segment bubble splitting.
+          const buf = assistantBuffers.get(ws) ?? "";
+          if (buf.trim().length > 0) {
+            appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
+            assistantBuffers.set(ws, "");
+          }
+        } else if (e.kind === "turn_end") {
+          const buf = assistantBuffers.get(ws) ?? "";
+          if (buf.trim().length > 0) {
+            appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
+          }
+          assistantBuffers.set(ws, "");
+        } else if (e.kind === "input_request") {
+          const optionsText = e.options?.length ? " | " + e.options.join(" | ") : "";
+          appendMessage(identity.id, {
+            role: "note",
+            noteKind: "input_request",
+            text: "❓ " + e.prompt + optionsText,
+            ts: Date.now(),
+          });
+        } else if (e.kind === "done" || e.kind === "blocked" || e.kind === "error") {
+          const text =
+            e.kind === "done"
+              ? "✅ " + e.summary
+              : e.kind === "blocked"
+                ? "⚠️ blocked: " + e.question
+                : "❌ " + e.error;
+          appendMessage(identity.id, {
+            role: "note",
+            noteKind: e.kind,
+            text,
+            ts: Date.now(),
+          });
+        }
+      } catch {
+        // socket already closed mid-stream; nothing to do.
+      }
+    })
+    .catch((err) =>
+      ws.send(
+        JSON.stringify({ kind: "error", error: err instanceof Error ? err.message : String(err) }),
+      ),
+    );
+}
 
 const server = Bun.serve<WSData>({
   port,
@@ -132,8 +212,6 @@ const server = Bun.serve<WSData>({
   websocket: {
     open(ws) {
       const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
-
-      // Each variant gets its own home dir under MULTIVERSE_ROOT; it clones repos there itself.
       const workdir = ensureVariantHome(identity.id);
 
       ws.send(
@@ -151,79 +229,7 @@ const server = Bun.serve<WSData>({
         ws.send(JSON.stringify({ kind: "history", messages: history }));
       }
 
-      // Inject the prior conversation transcript into the model's system prompt so it
-      // has memory across reconnects. Capped at the last 100 chat turns.
-      const transcript = formatTranscript(history);
-      const contextualIdentity =
-        transcript.length > 0
-          ? {
-              ...identity,
-              systemPromptAppend:
-                identity.systemPromptAppend +
-                "\n\n=== PRIOR CONVERSATION HISTORY ===\n" +
-                "The following is the conversation history from a previous session. " +
-                "Use it to maintain continuity:\n\n" +
-                transcript +
-                "\n\n[End of prior history. Continue the conversation naturally.]",
-            }
-          : identity;
-
-      const variant = new Variant(contextualIdentity, { workdir, model });
-      sessions.set(ws, variant);
-      assistantBuffers.set(ws, "");
-
-      // Forward every variant event to the browser. run() resolves only on stop().
-      variant
-        .run((e) => {
-          try {
-            ws.send(JSON.stringify(e));
-            if (e.kind === "text") {
-              assistantBuffers.set(ws, (assistantBuffers.get(ws) ?? "") + e.text);
-            } else if (e.kind === "progress") {
-              // Flush accumulated text before each tool call so history entries mirror
-              // the UI's per-segment bubble splitting.
-              const buf = assistantBuffers.get(ws) ?? "";
-              if (buf.trim().length > 0) {
-                appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
-                assistantBuffers.set(ws, "");
-              }
-            } else if (e.kind === "turn_end") {
-              const buf = assistantBuffers.get(ws) ?? "";
-              if (buf.trim().length > 0) {
-                appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
-              }
-              assistantBuffers.set(ws, "");
-            } else if (e.kind === "input_request") {
-              const optionsText = e.options?.length ? " | " + e.options.join(" | ") : "";
-              appendMessage(identity.id, {
-                role: "note",
-                noteKind: "input_request",
-                text: "❓ " + e.prompt + optionsText,
-                ts: Date.now(),
-              });
-            } else if (e.kind === "done" || e.kind === "blocked" || e.kind === "error") {
-              const text =
-                e.kind === "done"
-                  ? "✅ " + e.summary
-                  : e.kind === "blocked"
-                    ? "⚠️ blocked: " + e.question
-                    : "❌ " + e.error;
-              appendMessage(identity.id, {
-                role: "note",
-                noteKind: e.kind,
-                text,
-                ts: Date.now(),
-              });
-            }
-          } catch {
-            // socket already closed mid-stream; nothing to do.
-          }
-        })
-        .catch((err) =>
-          ws.send(
-            JSON.stringify({ kind: "error", error: err instanceof Error ? err.message : String(err) }),
-          ),
-        );
+      spawnVariant(ws, identity);
     },
     message(ws, raw) {
       const text = (typeof raw === "string" ? raw : raw.toString()).trim();
@@ -235,6 +241,20 @@ const server = Bun.serve<WSData>({
           if (!response) return;
           appendMessage(ws.data.id, { role: "user", text: response, ts: Date.now() });
           sessions.get(ws)?.send(response);
+          return;
+        }
+        if (parsed.kind === "interrupt") {
+          const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
+          // Flush any partial assistant response before stopping.
+          const buf = assistantBuffers.get(ws) ?? "";
+          if (buf.trim().length > 0) {
+            appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
+          }
+          // Stop the current variant (sets closed=true on its input generator).
+          sessions.get(ws)?.stop();
+          // Spawn a fresh variant that picks up the now-updated history.
+          spawnVariant(ws, identity);
+          ws.send(JSON.stringify({ kind: "interrupted" }));
           return;
         }
       } catch {

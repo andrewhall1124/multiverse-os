@@ -22,6 +22,7 @@ import { makeGuardrails } from "./guardrails.js";
 export type VariantEvent =
   | { kind: "text"; text: string } // streamed assistant prose
   | { kind: "turn_end" } // model finished responding to the current message
+  | { kind: "interrupted" } // user cancelled the current turn
   | { kind: "done"; summary: string } // task complete, ready for review
   | { kind: "blocked"; question: string } // needs a human decision
   | { kind: "input_request"; prompt: string; expected: "text" | "choice"; options?: string[] } // structured user input
