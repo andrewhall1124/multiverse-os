@@ -361,6 +361,16 @@
             return;
           }
           if (e.kind === "progress") {
+            // Seal the current streaming bubble so the next text chunk opens a fresh one.
+            if (s.streaming) {
+              s.streaming.streaming = false;
+              s.streaming = null;
+              if (activeId === meta.id) {
+                const rows = logEl.querySelectorAll(".row.andrew");
+                const last = rows[rows.length - 1];
+                if (last) last.querySelector(".bubble").classList.remove("cursor");
+              }
+            }
             s.lastProgress = { tool: e.tool, summary: e.summary };
             if (activeId === meta.id) updateActivity(s.lastProgress);
             return;
