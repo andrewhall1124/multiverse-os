@@ -280,6 +280,8 @@
       textarea:focus { outline: none; border-color: var(--accent); }
       button { background: var(--accent); color: var(--on-accent); border: none; border-radius: 10px; padding: 10px 20px; font: inherit; font-weight: 600; cursor: pointer; align-self: flex-end; }
       button:disabled { opacity: 0.5; cursor: default; }
+      #send.stop { background: transparent; color: var(--err, #c44); border: 1px solid var(--err, #c44); }
+      #send.stop:hover:not(:disabled) { background: var(--err, #c44); color: #fff; }
       #attachments { display: none; flex-wrap: wrap; gap: 6px; }
       .attachment {
         display: flex; align-items: center; gap: 6px;
@@ -617,8 +619,16 @@
         $("hWorkdir").textContent = s.meta.workdir ? "working in: " + s.meta.workdir : "";
         input.disabled = false;
         attachBtn.disabled = false;
-        sendBtn.disabled = !s.live;
         clearBtn.disabled = false;
+        if (s.working) {
+          sendBtn.textContent = "Stop";
+          sendBtn.classList.add("stop");
+          sendBtn.disabled = !s.live;
+        } else {
+          sendBtn.textContent = "Send";
+          sendBtn.classList.remove("stop");
+          sendBtn.disabled = !s.live;
+        }
         if (s.working && s.lastProgress) updateActivity(s.lastProgress);
         else clearActivity();
         clearAttachments();
@@ -633,8 +643,8 @@
         const s = sessions[meta.id];
         s.ws = ws;
 
-        ws.onopen = () => { s.live = true; if (activeId === meta.id) sendBtn.disabled = false; setSidebarState(meta.id); };
-        ws.onclose = () => { s.live = false; s.working = false; s.streaming = null; setSidebarState(meta.id); if (activeId === meta.id) sendBtn.disabled = true; };
+        ws.onopen = () => { s.live = true; if (activeId === meta.id) { if (!s.working) { sendBtn.disabled = false; } } setSidebarState(meta.id); };
+        ws.onclose = () => { s.live = false; s.streaming = null; setWorking(meta.id, false); if (activeId === meta.id) sendBtn.disabled = true; };
         ws.onerror = () => { s.live = false; setSidebarState(meta.id); };
 
         ws.onmessage = (ev) => {
@@ -683,11 +693,12 @@
             if (activeId === meta.id) updateActivity(s.lastProgress);
             return;
           }
-          if (e.kind === "turn_end") {
+          if (e.kind === "turn_end" || e.kind === "interrupted") {
             if (s.streaming) { s.streaming.streaming = false; s.streaming = null; }
-            s.working = false; s.lastProgress = null; setSidebarState(meta.id);
-            if (activeId === meta.id) { clearActivity(); renderLog(); sendBtn.disabled = !s.live; }
-            notify(s.meta.name, "Done thinking.", s.meta.avatar, meta.id);
+            s.lastProgress = null;
+            setWorking(meta.id, false);
+            if (activeId === meta.id) { clearActivity(); renderLog(); }
+            if (e.kind === "turn_end") notify(s.meta.name, "Done thinking.", s.meta.avatar, meta.id);
             return;
           }
           if (e.kind === "input_request") {
@@ -699,9 +710,9 @@
                        : e.kind === "blocked" ? "⚠️ blocked: " + e.question
                        : "❌ " + e.error;
             s.messages.push({ kind: "note", noteKind: e.kind, text });
-            if (e.kind === "error") s.working = false;
-            setSidebarState(meta.id);
-            if (activeId === meta.id) { appendNode({ kind: "note", noteKind: e.kind, text }); if (e.kind === "error") sendBtn.disabled = !s.live; }
+            if (e.kind === "error") setWorking(meta.id, false);
+            else setSidebarState(meta.id);
+            if (activeId === meta.id) { appendNode({ kind: "note", noteKind: e.kind, text }); }
             const notifBody = e.kind === "done" ? e.summary : e.kind === "blocked" ? e.question : e.error;
             notify(s.meta.name + (e.kind === "blocked" ? " needs input" : e.kind === "error" ? " errored" : " finished"), notifBody, s.meta.avatar, meta.id);
           }
@@ -758,9 +769,7 @@
         if (!s.ws || s.ws.readyState !== WebSocket.OPEN) return;
         s.pendingInput = null;
         s.messages.push({ who: "me", text: response });
-        s.working = true;
-        setSidebarState(s.meta.id);
-        sendBtn.disabled = true;
+        setWorking(s.meta.id, true);
         s.ws.send(JSON.stringify({ kind: "input_response", response }));
         if (activeId === s.meta.id) renderLog();
       }
@@ -816,8 +825,33 @@
       });
       // ---- End large-paste ----
 
+      function setWorking(id, working) {
+        const s = sessions[id];
+        if (!s) return;
+        s.working = working;
+        setSidebarState(id);
+        if (id !== activeId) return;
+        if (working) {
+          sendBtn.textContent = "Stop";
+          sendBtn.classList.add("stop");
+          sendBtn.disabled = false;
+        } else {
+          sendBtn.textContent = "Send";
+          sendBtn.classList.remove("stop");
+          sendBtn.disabled = !s.live;
+        }
+      }
+
+      function interrupt() {
+        const s = sessions[activeId];
+        if (!s || !s.live || s.ws.readyState !== WebSocket.OPEN) return;
+        sendBtn.disabled = true;
+        s.ws.send(JSON.stringify({ kind: "interrupt" }));
+      }
+
       function submit() {
         const s = sessions[activeId];
+        if (s?.working) { interrupt(); return; }
         let text = input.value.trim();
         const attachments = getAttachments();
         if (!s || (!text && !attachments.length) || !s.live || s.ws.readyState !== WebSocket.OPEN) return;
@@ -833,9 +867,7 @@
         s.messages.push({ who: "me", text });
         appendNode({ who: "me", text });
         s.ws.send(text);
-        s.working = true;
-        setSidebarState(activeId);
-        sendBtn.disabled = true;
+        setWorking(activeId, true);
         input.value = "";
         input.style.height = "auto";
         clearAttachments();
