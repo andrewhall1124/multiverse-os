@@ -459,7 +459,7 @@
             if (s.streaming) { s.streaming.streaming = false; s.streaming = null; }
             s.working = false; s.lastProgress = null; setSidebarState(meta.id);
             if (activeId === meta.id) { clearActivity(); renderLog(); sendBtn.disabled = !s.live; }
-            notify(s.meta.name, "Done thinking.");
+            notify(s.meta.name, "Done thinking.", s.meta.avatar, meta.id);
             return;
           }
           if (e.kind === "done" || e.kind === "blocked" || e.kind === "error") {
@@ -471,7 +471,7 @@
             setSidebarState(meta.id);
             if (activeId === meta.id) { appendNode({ kind: "note", noteKind: e.kind, text }); if (e.kind === "error") sendBtn.disabled = !s.live; }
             const notifBody = e.kind === "done" ? e.summary : e.kind === "blocked" ? e.question : e.error;
-            notify(s.meta.name + (e.kind === "blocked" ? " needs input" : e.kind === "error" ? " errored" : " finished"), notifBody);
+            notify(s.meta.name + (e.kind === "blocked" ? " needs input" : e.kind === "error" ? " errored" : " finished"), notifBody, s.meta.avatar, meta.id);
           }
         };
       }
@@ -494,10 +494,11 @@
       input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } });
       input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 160) + "px"; });
 
-      function notify(title, body) {
+      function notify(title, body, avatar, variantId) {
         if (document.visibilityState === "visible") return;
         if (Notification.permission !== "granted") return;
-        try { new Notification(title, { body, silent: false }); } catch (_) {}
+        const icon = avatar ? window.location.origin + avatar : undefined;
+        try { new Notification(title, { body, icon, tag: variantId, silent: false }); } catch (_) {}
       }
 
       document.getElementById("notifTest").addEventListener("click", async () => {
@@ -506,7 +507,10 @@
           alert(`Notification permission is "${Notification.permission}". Check your browser/OS notification settings.`);
           return;
         }
-        try { new Notification("Test notification", { body: "Notifications are working." }); } catch (_) {}
+        const s = sessions[activeId];
+        const icon = s ? window.location.origin + s.meta.avatar : undefined;
+        const name = s ? s.meta.name : "Variant";
+        try { new Notification(name, { body: "Notifications are working.", icon, tag: activeId }); } catch (_) {}
       });
 
       // Bootstrap: load the variant list, build the sidebar, open a socket per variant.
