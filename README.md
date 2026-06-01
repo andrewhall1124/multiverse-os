@@ -1,4 +1,4 @@
-# Andrew Variants
+# Multiverse OS
 
 ![The team](profile-pics/group-photo.png)
 
