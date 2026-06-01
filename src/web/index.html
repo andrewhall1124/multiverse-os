@@ -495,45 +495,22 @@
       input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 160) + "px"; });
 
       function notify(title, body) {
-        console.log("[notify] called — visibility:", document.visibilityState, "| permission:", Notification.permission, "| title:", title);
-        if (document.visibilityState === "visible") { console.log("[notify] suppressed — tab is visible"); return; }
-        if (Notification.permission !== "granted") { console.log("[notify] suppressed — permission not granted"); return; }
-        console.log("[notify] firing Notification:", title, body);
-        try {
-          const n = new Notification(title, { body, silent: false });
-          n.onerror = (e) => console.error("[notify] Notification error:", e);
-          n.onshow = () => console.log("[notify] Notification shown");
-        } catch (err) {
-          console.error("[notify] new Notification() threw:", err);
-        }
+        if (document.visibilityState === "visible") return;
+        if (Notification.permission !== "granted") return;
+        try { new Notification(title, { body, silent: false }); } catch (_) {}
       }
 
       document.getElementById("notifTest").addEventListener("click", async () => {
-        console.log("[testNotif] clicked — current permission:", Notification.permission);
-        if (Notification.permission === "default") {
-          console.log("[testNotif] requesting permission...");
-          const result = await Notification.requestPermission();
-          console.log("[testNotif] requestPermission() returned:", result);
-        }
+        if (Notification.permission === "default") await Notification.requestPermission();
         if (Notification.permission !== "granted") {
           alert(`Notification permission is "${Notification.permission}". Check your browser/OS notification settings.`);
           return;
         }
-        console.log("[testNotif] firing test notification");
-        try {
-          const n = new Notification("Test notification", { body: "Notifications are working." });
-          n.onerror = (e) => console.error("[testNotif] Notification error:", e);
-          n.onshow = () => console.log("[testNotif] Notification shown");
-        } catch (err) {
-          console.error("[testNotif] new Notification() threw:", err);
-        }
+        try { new Notification("Test notification", { body: "Notifications are working." }); } catch (_) {}
       });
 
       // Bootstrap: load the variant list, build the sidebar, open a socket per variant.
-      console.log("[init] Notification.permission:", Notification.permission, "| Notification supported:", "Notification" in window);
-      if (Notification.permission === "default") {
-        Notification.requestPermission().then(r => console.log("[init] requestPermission() returned:", r));
-      }
+      if (Notification.permission === "default") Notification.requestPermission();
 
       fetch("/variants").then((r) => r.json()).then((list) => {
         list.forEach((v, i) => {
