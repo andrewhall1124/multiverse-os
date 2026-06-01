@@ -149,10 +149,13 @@ export class Variant {
           const done = matchLine(turnBuffer, "DONE:");
           const blocked = matchLine(turnBuffer, "BLOCKED:");
           const inputReq = parseInputRequest(turnBuffer);
+          // turn_end fires first so sentinel events (done/blocked) fire last and their
+          // notification wins (both use tag: variantId, last write wins in the browser).
+          // Also ensures server flushes the text buffer before appending the done note.
+          on({ kind: "turn_end" });
           if (done) on({ kind: "done", summary: done });
           else if (blocked) on({ kind: "blocked", question: blocked });
           else if (inputReq) on(inputReq);
-          on({ kind: "turn_end" });
           turnBuffer = "";
         }
       }
