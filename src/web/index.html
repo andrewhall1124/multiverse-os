@@ -340,6 +340,7 @@
             if (s.streaming) { s.streaming.streaming = false; s.streaming = null; }
             s.working = false; s.lastProgress = null; setSidebarState(meta.id);
             if (activeId === meta.id) { clearActivity(); renderLog(); sendBtn.disabled = !s.live; }
+            notify(s.meta.name, "Done thinking.");
             return;
           }
           if (e.kind === "done" || e.kind === "blocked" || e.kind === "error") {
@@ -350,6 +351,8 @@
             if (e.kind === "error") s.working = false;
             setSidebarState(meta.id);
             if (activeId === meta.id) { appendNode({ kind: "note", noteKind: e.kind, text }); if (e.kind === "error") sendBtn.disabled = !s.live; }
+            const notifBody = e.kind === "done" ? e.summary : e.kind === "blocked" ? e.question : e.error;
+            notify(s.meta.name + (e.kind === "blocked" ? " needs input" : e.kind === "error" ? " errored" : " finished"), notifBody);
           }
         };
       }
@@ -372,7 +375,15 @@
       input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } });
       input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 160) + "px"; });
 
+      function notify(title, body) {
+        if (document.visibilityState === "visible") return;
+        if (Notification.permission !== "granted") return;
+        new Notification(title, { body, icon: "/profile-pics/greek-andrew.png", silent: false });
+      }
+
       // Bootstrap: load the variant list, build the sidebar, open a socket per variant.
+      if (Notification.permission === "default") Notification.requestPermission();
+
       fetch("/variants").then((r) => r.json()).then((list) => {
         list.forEach((v, i) => {
           sessions[v.id] = { meta: v, ws: null, working: false, lastProgress: null, live: false, streaming: null, messages: [] };
