@@ -49,14 +49,18 @@ profile-pics/      one <id>-andrew.png per variant
 
 ## Git workflow (non-negotiable)
 
-- Do all work in a **git worktree on an `andrew/<short-task-slug>` branch** — never edit
-  `main`/`master`/`dev`/`develop` directly. Use the `EnterWorktree` tool.
-- Hand back a reviewable diff; never push to a protected branch (`guardrails.ts` enforces).
+- Each variant runs in its **own home directory** at `MULTIVERSE_ROOT/<id>` (default
+  `/Users/andrew/MultiverseOS/<id>`, ensured empty by `src/workspace.ts`). Clone whatever
+  repos you need there yourself, and do work on an **`andrew/<short-task-slug>` branch** —
+  never commit to `main`/`master`/`dev`/`develop`.
+- You may commit, push, and pull your `andrew/*` branch freely. Hand back a reviewable diff;
+  never push to a protected branch (`guardrails.ts` enforces).
 - **`.env` holds a real OAuth token and is gitignored — never stage, commit, or print it.**
 
 ## Self-hosting caveat
 
-When working in THIS repo you are editing the harness that may be running you. Do your edits
-in your own worktree (not the directory the server is running from), and avoid `--watch`
-scripts during self-edits — a half-written save will hot-reload and crash the live server.
+When working in THIS repo you are editing the harness that may be running you. Because each
+variant operates in its own home directory under `MULTIVERSE_ROOT` (separate from the directory
+the server runs from), self-edits won't disturb the live server — but still avoid `--watch`
+scripts during self-edits, since a half-written save will hot-reload and crash a running server.
 Run `bun run web` (no watch) while variants are working.

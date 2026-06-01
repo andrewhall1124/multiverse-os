@@ -2,6 +2,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { loadAndrew } from "./persona.js";
 import { Variant } from "./variant.js";
+import { ensureVariantHome } from "./workspace.js";
 
 /**
  * Minimal "chat app" surface for one variant, in the terminal.
@@ -13,7 +14,8 @@ import { Variant } from "./variant.js";
  */
 
 const andrew = loadAndrew();
-const workdir = process.env.ANDREW_WORKDIR || process.cwd();
+// Each variant gets its own home dir under MULTIVERSE_ROOT; it clones repos there itself.
+const workdir = ensureVariantHome(andrew.id);
 
 // Either credential works: a subscription OAuth token (from `claude setup-token`,
 // billed against your Claude Pro/Max plan) or a pay-as-you-go API key. If both are

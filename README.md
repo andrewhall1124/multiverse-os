@@ -25,8 +25,10 @@ actually *our product*: the personas, the coordination, and the chat UX.
 
 The SDK gives us two things that map directly onto the design:
 
-- **Git worktree isolation** via the built-in `EnterWorktree` tool — each variant works on
-  its own branch in its own worktree, so concurrent variants don't collide.
+- **Per-variant filesystem isolation** — each variant gets its **own home directory** at
+  `/Users/andrew/MultiverseOS/{variant}` as its `cwd`. The harness only ensures that directory
+  exists; the variant clones whatever repos it needs into it itself, so it can branch, commit,
+  and push/pull completely independently of the other variants and of this project's own checkout.
 - **Lifecycle signals** (task started / completed) for the async "ping me when done" UX.
 
 ```
@@ -37,6 +39,7 @@ variant-config/
   andrew.coding.md     ← HOW EVERY ANDREW CODES  (shared — "codes like me")
 src/
   persona.ts           the four variants = shared markdown + a per-variant twist
+  workspace.ts         ensures each variant's own home directory under MULTIVERSE_ROOT
   guardrails.ts        blocks pushes to protected branches + destructive commands
   variant.ts           wraps the SDK agent loop as a stateful chat session
   chat.ts              terminal chat with one variant
@@ -44,11 +47,31 @@ src/
   web/index.html       the browser chat UI (sidebar of variants + chat pane)
 ```
 
+### Per-variant home directories
+
+Instead of sharing one checkout and isolating with git worktrees, **each variant owns a
+dedicated home directory** on disk:
+
+```
+/Users/andrew/MultiverseOS/
+  greek/    ← Greek Sculpture Andrew's home   (starts empty; it clones repos in here itself)
+  dog/      ← Dog Andrew's home
+  muppet/   ← Muppet Andrew's home
+  lego/     ← Lego Andrew's home
+```
+
+On startup (terminal) or first connect (web), `src/workspace.ts` ensures the variant's
+home directory exists — and nothing more. The variant itself clones whatever repos it needs
+into that directory (`git clone …`), creates `andrew/<task-slug>` branches, commits, and
+pushes/pulls on its own. One env var tunes this:
+
+- `MULTIVERSE_ROOT` — base directory for the variant homes (default `/Users/andrew/MultiverseOS`).
+
 ## Getting Started
 
 ```bash
 bun install
-cp .env.example .env        # then set ANDREW_WORKDIR and one credential (below)
+cp .env.example .env        # set one credential (below); MULTIVERSE_ROOT is optional
 bun run web                 # chat UI at http://localhost:3000
 ```
 
@@ -82,14 +105,15 @@ The token is valid for about a year — re-run `claude setup-token` to refresh i
 
 ## Using it
 
-`ANDREW_WORKDIR` is the repo you want the variants to work in (defaults to the current
-directory). Pick a variant in the left sidebar and give them a task:
+Each variant works in its **own home directory** under `MULTIVERSE_ROOT` (e.g.
+`/Users/andrew/MultiverseOS/muppet`), created the first time you talk to it. It clones the
+repos it needs in there itself. Pick a variant in the left sidebar and give them a task:
 
 ```
 you › add a /health endpoint that returns build version, on a branch
 🎭  ...streams the work...
 ✅ Muppet Andrew finished: added GET /health returning {status, version}
-   review with:  git -C /your/repo diff
+   review with:  git -C /Users/andrew/MultiverseOS/muppet diff
 ```
 
 If a variant needs a decision it stops and asks instead of guessing (`⚠️ blocked: …`).
@@ -114,7 +138,7 @@ between threads like a messaging app. Streamed `text` events render live; `done`
 | "Codes like me" | `andrew.coding.md` (shared); the target repo's own `CLAUDE.md` is also loaded and wins on project specifics |
 | "Talks like me" | `andrew.identity.md` (shared) |
 | Distinct teammates | per-variant `twist` in `persona.ts` (same shared markdown underneath) |
-| Work on a branch, not `main` | persona rule + `EnterWorktree` + `guardrails.ts` blocking protected-branch pushes |
+| Work on a branch, not `main` | persona rule + a dedicated per-variant home directory (`workspace.ts`) + `guardrails.ts` blocking protected-branch pushes |
 | Async "notify me when done" | `DONE:` / `BLOCKED:` lines → `done` / `blocked` events surfaced in `chat.ts` and the web UI |
 | Safe to run unattended | `canUseTool` denies force-push, `rm -rf /`, `git reset --hard`, `sudo`, etc. |
 
@@ -122,8 +146,8 @@ between threads like a messaging app. Streamed `text` events render live; `done`
 
 Adding a variant is one entry in the `VARIANTS` array in `src/persona.ts` (id, name, emoji,
 avatar, twist) plus a profile pic in `profile-pics/`. The sidebar, routing, and a dedicated
-worktree all follow automatically. For more divergence, give a variant its own persona
-markdown instead of sharing the defaults.
+home directory under `MULTIVERSE_ROOT/<id>` all follow automatically. For more divergence,
+give a variant its own persona markdown instead of sharing the defaults.
 
 > Verified against the Agent SDK's documented API (v0.3.x). Run `bun run typecheck` after
 > `bun install` to confirm against the exact version you pull.

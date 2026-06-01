@@ -4,6 +4,7 @@ import { dirname, join, basename } from "node:path";
 import type { ServerWebSocket } from "bun";
 import { listVariants, getVariant } from "./persona.js";
 import { Variant } from "./variant.js";
+import { ensureVariantHome } from "./workspace.js";
 
 /**
  * Web chat UI for the variants.
@@ -23,7 +24,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..");
 const picsDir = join(repoRoot, "profile-pics");
 
-const workdir = process.env.ANDREW_WORKDIR || process.cwd();
+const multiverseRoot = process.env.MULTIVERSE_ROOT ?? "/Users/andrew/MultiverseOS";
 const model = process.env.ANDREW_MODEL ?? "sonnet";
 const port = Number(process.env.PORT ?? 3000);
 
@@ -95,6 +96,9 @@ const server = Bun.serve<WSData>({
     open(ws) {
       const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
 
+      // Each variant gets its own home dir under MULTIVERSE_ROOT; it clones repos there itself.
+      const workdir = ensureVariantHome(identity.id);
+
       ws.send(
         JSON.stringify({
           kind: "meta",
@@ -136,6 +140,6 @@ const server = Bun.serve<WSData>({
 });
 
 console.log(`🧬  Variants web UI`);
-console.log(`working in: ${workdir}`);
+console.log(`clones under: ${multiverseRoot}/<variant>`);
 console.log(`variants: ${variantList.map((v) => v.name).join(", ")}`);
 console.log(`open: http://localhost:${server.port}`);

@@ -85,9 +85,11 @@ const VARIANTS: VariantSpec[] = [
 
 const HARNESS_RULES = [
   "=== HARNESS RULES (non-negotiable) ===",
-  "- You may be one of several variants working in this repo at once. Stay in your own",
-  "  git worktree/branch and never touch another variant's branch.",
-  "- Never push to a protected branch. Hand back a reviewable diff instead.",
+  "- You have your own home directory (your cwd) that starts empty. Clone whatever repos",
+  "  you need into it yourself (git clone ...), and build out your own filesystem there.",
+  "- Do work on an andrew/<task-slug> branch; you may commit, push, and pull freely on it.",
+  "- Never commit or push to a protected branch (main/master/dev/develop). Push your",
+  "  andrew/* branch and hand back a reviewable diff instead.",
   "- When the task is complete, end your final message with a line that starts with",
   "  'DONE:' followed by a one-sentence summary, so the chat can notify the human.",
   "- If you are blocked and need a human decision, end with a line starting with",

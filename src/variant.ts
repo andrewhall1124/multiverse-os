@@ -1,6 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { VariantIdentity } from "./persona.js";
-import { canUseTool } from "./guardrails.js";
+import { makeGuardrails } from "./guardrails.js";
 
 /**
  * A single variant running on top of the Claude Agent SDK harness.
@@ -9,10 +9,10 @@ import { canUseTool } from "./guardrails.js";
  *  - Stateful chat: we run ONE long-lived `query()` in streaming-input mode, feeding
  *    the human's messages in as they type. That gives multi-turn memory ("message the
  *    variant like a chat app") instead of a fresh agent per message.
- *  - Worktree isolation: the persona instructs the variant to do its work in a dedicated
- *    git worktree/branch. The SDK exposes an EnterWorktree tool, so the model can create
- *    and move into its own worktree itself. One variant today; spawning N variants later is
- *    just N instances of this class pointed at the same repo.
+ *  - Filesystem isolation: each variant runs with its `cwd` set to its OWN home directory
+ *    (MULTIVERSE_ROOT/<id>, just an empty dir ensured in workspace.ts). The variant clones
+ *    whatever repos it needs there itself and works on andrew/<task-slug> branches. Spawning
+ *    N variants is just N instances of this class pointed at N separate home dirs.
  *  - Async "ping me when done": the model ends with a DONE:/BLOCKED: line, which we
  *    surface to the UI as a notification. Swap the console handlers in chat.ts for push
  *    notifications / Slack / a websocket to a real chat app.
@@ -97,7 +97,7 @@ export class Variant {
           },
           // Also pick up the target repo's own CLAUDE.md / conventions if present.
           settingSources: ["project"],
-          // The variant needs to read, write, run commands, search, and manage worktrees.
+          // The variant needs to read, write, run commands, and search within its home dir.
           allowedTools: [
             "Read",
             "Write",
@@ -108,10 +108,10 @@ export class Variant {
             "WebSearch",
             "WebFetch",
             "TodoWrite",
-            "EnterWorktree",
           ],
           permissionMode: "acceptEdits",
-          canUseTool,
+          // Scope the guardrails to THIS variant's home dir so it can't edit files elsewhere.
+          canUseTool: makeGuardrails(this.opts.workdir),
         } as never,
       });
 
