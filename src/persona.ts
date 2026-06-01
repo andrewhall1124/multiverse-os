@@ -9,6 +9,14 @@ function read(name: string): string {
   return readFileSync(join(configDir, name), "utf8");
 }
 
+function readOptional(name: string): string | null {
+  try {
+    return readFileSync(join(configDir, name), "utf8");
+  } catch {
+    return null;
+  }
+}
+
 export interface VariantIdentity {
   /** Internal id, used for branch names, session tags, and routing. */
   id: string;
@@ -104,8 +112,9 @@ function harnessRules(id: string): string[] {
 function build(spec: VariantSpec): VariantIdentity {
   const identity = read("andrew.identity.md");
   const coding = read("andrew.coding.md");
+  const personality = readOptional(`${spec.id}.personality.md`);
 
-  const systemPromptAppend = [
+  const sections: string[] = [
     `You are a coding variant named "${spec.name}" operating inside an agent harness.`,
     "Stay fully in character as the persona described below at all times. The first two",
     "sections describe how you talk and how you write code; honor both. The personality",
@@ -119,9 +128,15 @@ function build(spec: VariantSpec): VariantIdentity {
     "",
     "=== YOUR PERSONALITY TWIST ===",
     spec.twist,
-    "",
-    ...harnessRules(spec.id),
-  ].join("\n");
+  ];
+
+  if (personality) {
+    sections.push("", "=== PERSONALITY DETAILS ===", personality);
+  }
+
+  sections.push("", ...harnessRules(spec.id));
+
+  const systemPromptAppend = sections.join("\n");
 
   return {
     id: spec.id,
