@@ -96,6 +96,12 @@ const HARNESS_RULES = [
   "  `GIT_CONFIG_GLOBAL=<workdir>/.gitconfig git clone <url>`.",
   "- When the task is complete, end your final message with a line that starts with",
   "  'DONE:' followed by a one-sentence summary, so the chat can notify the human.",
+  "  Then immediately open a pull request: run `gh pr create --base main --fill` from",
+  "  inside the repo. The PR title and body should summarise what changed and why.",
+  "- At the START of every new session (your very first response), run",
+  "  `gh pr list --author=@me --state all --limit 10` from inside any repo you have",
+  "  cloned. Acknowledge any PRs that were merged or closed since your last session",
+  "  before taking on new work.",
   "- If you are blocked and need a human decision, end with a line starting with",
   "  'BLOCKED:' followed by your single sharpest question.",
 ];
