@@ -110,6 +110,44 @@
       .cursor::after { content: "▍"; color: var(--muted); animation: pulse 1s infinite; }
       @keyframes pulse { 50% { opacity: 0.3; } }
 
+      /* ---- Activity bar: live tool progress ---- */
+      #activity {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 20px;
+        background: var(--panel);
+        border-top: 1px solid var(--border);
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #activity.visible { display: flex; }
+      #activity .spinner {
+        width: 8px; height: 8px; border-radius: 50%;
+        border: 1.5px solid var(--muted); border-top-color: var(--text);
+        animation: spin 0.7s linear infinite; flex-shrink: 0;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* ---- Progress toggle button in header ---- */
+      #progressToggle {
+        margin-left: auto;
+        font-size: 11px;
+        color: var(--muted);
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 3px 9px;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 500;
+      }
+      #progressToggle:hover { color: var(--text); border-color: var(--text); }
+      #progressToggle:disabled { display: none; }
+
       form { display: flex; gap: 10px; padding: 14px 20px; background: var(--panel); border-top: 1px solid var(--border); }
       textarea {
         flex: 1; resize: none; background: var(--bg); color: var(--text);
@@ -133,9 +171,12 @@
           <div class="title" id="hName">Pick a variant</div>
           <div class="sub" id="hWorkdir"></div>
         </div>
+        <button id="progressToggle" type="button" disabled>Show progress</button>
       </div>
 
       <div id="log"><div id="empty">Select a variant on the left to start chatting.</div></div>
+
+      <div id="activity"><div class="spinner"></div><span id="activityText"></span></div>
 
       <form id="form">
         <textarea id="input" rows="1" placeholder="Give Andrew a task… (Enter to send, Shift+Enter for newline)" disabled></textarea>
@@ -175,9 +216,40 @@
       const form = $("form");
       const input = $("input");
       const sendBtn = $("send");
+      const activityEl = $("activity");
+      const activityText = $("activityText");
+      const progressToggle = $("progressToggle");
+
+      // showProgress is global and persisted — toggle affects all variants.
+      let showProgress = localStorage.getItem("showProgress") !== "false";
+
+      function applyProgressToggle() {
+        progressToggle.textContent = showProgress ? "Hide progress" : "Show progress";
+        if (!showProgress) activityEl.classList.remove("visible");
+      }
+      applyProgressToggle();
+
+      progressToggle.addEventListener("click", () => {
+        showProgress = !showProgress;
+        localStorage.setItem("showProgress", showProgress);
+        applyProgressToggle();
+        // If we're currently working and just toggled on, show the last known progress.
+        const s = sessions[activeId];
+        if (showProgress && s?.lastProgress) updateActivity(s.lastProgress);
+      });
+
+      function updateActivity({ tool, summary }) {
+        if (!showProgress) return;
+        activityText.textContent = `${tool}: ${summary}`;
+        activityEl.classList.add("visible");
+      }
+
+      function clearActivity() {
+        activityEl.classList.remove("visible");
+      }
 
       // One session object per variant: its socket, message history, and UI state.
-      const sessions = {}; // id -> { meta, ws, status, working, messages: [{who, kind, text, avatar}], live, streaming }
+      const sessions = {}; // id -> { meta, ws, status, working, lastProgress, messages: [{who, kind, text, avatar}], live, streaming }
       let activeId = null;
 
       function setSidebarState(id) {
@@ -239,6 +311,10 @@
         $("hWorkdir").textContent = s.meta.workdir ? "working in: " + s.meta.workdir : "";
         input.disabled = false;
         sendBtn.disabled = !s.live;
+        progressToggle.disabled = false;
+        // Reflect the active session's current progress state.
+        if (s.working && s.lastProgress) updateActivity(s.lastProgress);
+        else clearActivity();
         input.focus();
         renderLog();
       }
@@ -284,10 +360,15 @@
             }
             return;
           }
+          if (e.kind === "progress") {
+            s.lastProgress = { tool: e.tool, summary: e.summary };
+            if (activeId === meta.id) updateActivity(s.lastProgress);
+            return;
+          }
           if (e.kind === "turn_end") {
             if (s.streaming) { s.streaming.streaming = false; s.streaming = null; }
-            s.working = false; setSidebarState(meta.id);
-            if (activeId === meta.id) { renderLog(); sendBtn.disabled = !s.live; }
+            s.working = false; s.lastProgress = null; setSidebarState(meta.id);
+            if (activeId === meta.id) { clearActivity(); renderLog(); sendBtn.disabled = !s.live; }
             return;
           }
           if (e.kind === "done" || e.kind === "blocked" || e.kind === "error") {
@@ -323,7 +404,7 @@
       // Bootstrap: load the variant list, build the sidebar, open a socket per variant.
       fetch("/variants").then((r) => r.json()).then((list) => {
         list.forEach((v, i) => {
-          sessions[v.id] = { meta: v, ws: null, working: false, live: false, streaming: null, messages: [] };
+          sessions[v.id] = { meta: v, ws: null, working: false, lastProgress: null, live: false, streaming: null, messages: [] };
 
           const node = document.createElement("div");
           node.className = "variant";

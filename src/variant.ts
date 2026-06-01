@@ -24,6 +24,7 @@ export type VariantEvent =
   | { kind: "turn_end" } // model finished responding to the current message
   | { kind: "done"; summary: string } // task complete, ready for review
   | { kind: "blocked"; question: string } // needs a human decision
+  | { kind: "progress"; tool: string; summary: string } // tool use in flight
   | { kind: "error"; error: string };
 
 export interface VariantOptions {
@@ -32,8 +33,13 @@ export interface VariantOptions {
 }
 
 // Minimal view of the SDK message stream — we only read the fields we use.
+type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; name: string; input: Record<string, unknown> };
+
 type SDKMsg =
-  | { type: "assistant"; message: { content: Array<{ type: string; text?: string }> } }
+  | { type: "assistant"; message: { content: ContentBlock[] } }
+  | { type: "tool_progress"; tool_name: string; elapsed_time_seconds: number }
   | { type: "result"; subtype?: string }
   | { type: string; [k: string]: unknown };
 
@@ -123,8 +129,19 @@ export class Variant {
             if (block.type === "text" && block.text) {
               turnBuffer += block.text;
               on({ kind: "text", text: block.text });
+            } else if (block.type === "tool_use") {
+              const b = block as Extract<ContentBlock, { type: "tool_use" }>;
+              on({ kind: "progress", tool: b.name, summary: toolSummary(b.name, b.input) });
             }
           }
+        } else if (msg.type === "tool_progress") {
+          const tp = msg as Extract<SDKMsg, { type: "tool_progress" }>;
+          const elapsed = Math.round(tp.elapsed_time_seconds);
+          on({
+            kind: "progress",
+            tool: tp.tool_name,
+            summary: elapsed > 0 ? `${elapsed}s elapsed` : "running",
+          });
         } else if (msg.type === "result") {
           // The model finished responding to the current human message.
           const done = matchLine(turnBuffer, "DONE:");
@@ -134,8 +151,6 @@ export class Variant {
           on({ kind: "turn_end" });
           turnBuffer = "";
         }
-        // Other message types (task progress, system, tool use) are ignored here but
-        // are where you'd hook richer chat-app UI: live "Andrew is editing foo.ts…".
       }
     } catch (err) {
       on({ kind: "error", error: err instanceof Error ? err.message : String(err) });
@@ -150,4 +165,20 @@ function matchLine(text: string, prefix: string): string | null {
     .reverse()
     .find((l) => l.startsWith(prefix));
   return line ? line.slice(prefix.length).trim() : null;
+}
+
+function toolSummary(tool: string, input: Record<string, unknown>): string {
+  const str = (k: string) => String(input[k] ?? "");
+  switch (tool) {
+    case "Bash": return str("command").slice(0, 80);
+    case "Read": return str("file_path");
+    case "Write": return str("file_path");
+    case "Edit": return str("file_path");
+    case "Glob": return str("pattern");
+    case "Grep": return str("pattern");
+    case "WebSearch": return str("query");
+    case "WebFetch": return str("url").slice(0, 80);
+    case "TodoWrite": return "updating todos";
+    default: return tool;
+  }
 }
