@@ -107,6 +107,8 @@
       .note.done { color: var(--ok); border-color: var(--ok); }
       .note.blocked { color: var(--warn); border-color: var(--warn); }
       .note.error { color: var(--err); border-color: var(--err); }
+      .session-divider { display: flex; align-items: center; gap: 10px; width: 100%; color: var(--muted); font-size: 11px; margin: 6px 0; }
+      .session-divider::before, .session-divider::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
       .cursor::after { content: "▍"; color: var(--muted); animation: pulse 1s infinite; }
       @keyframes pulse { 50% { opacity: 0.3; } }
 
@@ -241,10 +243,17 @@
 
       function appendNode(m) {
         if (m.kind === "note") {
-          const n = document.createElement("div");
-          n.className = "note " + m.noteKind;
-          n.textContent = m.text;
-          logEl.appendChild(n);
+          if (m.noteKind === "session_start") {
+            const n = document.createElement("div");
+            n.className = "session-divider";
+            n.textContent = m.text;
+            logEl.appendChild(n);
+          } else {
+            const n = document.createElement("div");
+            n.className = "note " + m.noteKind;
+            n.textContent = m.text;
+            logEl.appendChild(n);
+          }
         } else {
           const row = document.createElement("div");
           row.className = "row " + m.who;

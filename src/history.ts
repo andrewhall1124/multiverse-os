@@ -8,7 +8,7 @@ const dataDir = join(__dirname, "..", "data");
 export type PersistedMessage =
   | { role: "user"; text: string; ts: number }
   | { role: "assistant"; text: string; ts: number }
-  | { role: "note"; noteKind: "done" | "blocked" | "error"; text: string; ts: number };
+  | { role: "note"; noteKind: "done" | "blocked" | "error" | "session_start"; text: string; ts: number };
 
 function historyPath(variantId: string): string {
   return join(dataDir, `chat-${variantId}.json`);
@@ -22,6 +22,12 @@ export function loadHistory(variantId: string): PersistedMessage[] {
   } catch {
     return [];
   }
+}
+
+export function appendSessionBreak(variantId: string): PersistedMessage {
+  const msg: PersistedMessage = { role: "note", noteKind: "session_start", text: "new session", ts: Date.now() };
+  appendMessage(variantId, msg);
+  return msg;
 }
 
 export function appendMessage(variantId: string, msg: PersistedMessage): void {
