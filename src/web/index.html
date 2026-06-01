@@ -347,6 +347,103 @@
         gap: 6px;
       }
       #themeToggle:hover { color: var(--text); border-color: var(--muted); }
+
+      /* ---- Sidebar footer + settings button ---- */
+      #sidebarFooter {
+        margin-top: auto;
+        padding: 10px 14px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+      }
+      #settingsBtn {
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 6px 8px;
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+      }
+      #settingsBtn:hover { color: var(--text); border-color: var(--border); }
+
+      /* ---- Settings modal ---- */
+      #settingsOverlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        z-index: 100;
+        align-items: center;
+        justify-content: center;
+      }
+      #settingsOverlay.open { display: flex; }
+      #settingsDialog {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 24px 28px;
+        width: 360px;
+        max-width: 90vw;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      #settingsHeader {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      #settingsHeader h2 { margin: 0; font-size: 15px; font-weight: 700; }
+      #settingsClose {
+        background: transparent;
+        color: var(--muted);
+        border: none;
+        border-radius: 6px;
+        padding: 4px 6px;
+        font-size: 16px;
+        line-height: 1;
+        cursor: pointer;
+      }
+      #settingsClose:hover { color: var(--text); }
+      .settings-section h3 {
+        margin: 0 0 6px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--muted);
+      }
+      .settings-desc {
+        margin: 0 0 12px;
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .settings-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+      .settings-actions button {
+        background: var(--panel2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 7px 14px;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .settings-actions button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+      .settings-actions button:disabled { opacity: 0.45; cursor: default; }
+      #testNotifBtn {
+        background: var(--accent) !important;
+        color: var(--on-accent) !important;
+        border-color: var(--accent) !important;
+        font-weight: 600 !important;
+      }
+      #testNotifBtn:hover:not(:disabled) { opacity: 0.85; }
     </style>
     <script>
       // Theme: preference is "system" | "light" | "dark" (default "system"),
@@ -415,6 +512,13 @@
       </div>
       <h1>Variants</h1>
       <div id="variants"></div>
+      <div id="sidebarFooter">
+        <button id="settingsBtn" type="button" title="Settings" aria-label="Settings">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
     </aside>
 
     <section id="chat">
@@ -444,6 +548,23 @@
         </div>
       </form>
     </section>
+
+    <div id="settingsOverlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div id="settingsDialog">
+        <div id="settingsHeader">
+          <h2 id="settingsTitle">Settings</h2>
+          <button id="settingsClose" type="button" aria-label="Close settings">✕</button>
+        </div>
+        <div class="settings-section">
+          <h3>Notifications</h3>
+          <p class="settings-desc" id="notifStatus"></p>
+          <div class="settings-actions">
+            <button id="requestNotifBtn" type="button">Enable Notifications</button>
+            <button id="testNotifBtn" type="button" disabled>Test Notification</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div id="modalDialog">
@@ -940,6 +1061,46 @@
         const icon = avatar ? window.location.origin + avatar : undefined;
         try { new Notification(title, { body, icon, tag: variantId, silent: false }); } catch (_) {}
       }
+
+      // ---- Settings modal ----
+      const settingsBtn = $("settingsBtn");
+      const settingsOverlay = $("settingsOverlay");
+      const settingsClose = $("settingsClose");
+      const notifStatusEl = $("notifStatus");
+      const requestNotifBtn = $("requestNotifBtn");
+      const testNotifBtn = $("testNotifBtn");
+
+      function updateNotifStatus() {
+        const perm = Notification.permission;
+        notifStatusEl.textContent =
+          perm === "granted" ? "Notifications are enabled." :
+          perm === "denied"  ? "Notifications are blocked. Enable them in your browser settings." :
+                               "Notifications have not been enabled yet.";
+        requestNotifBtn.style.display = perm === "default" ? "" : "none";
+        testNotifBtn.disabled = perm !== "granted";
+      }
+
+      function openSettings() { updateNotifStatus(); settingsOverlay.classList.add("open"); }
+      function closeSettings() { settingsOverlay.classList.remove("open"); }
+
+      settingsBtn.addEventListener("click", openSettings);
+      settingsClose.addEventListener("click", closeSettings);
+      settingsOverlay.addEventListener("click", (e) => { if (e.target === settingsOverlay) closeSettings(); });
+
+      requestNotifBtn.addEventListener("click", async () => {
+        await Notification.requestPermission();
+        updateNotifStatus();
+      });
+
+      testNotifBtn.addEventListener("click", () => {
+        try {
+          new Notification("multiverse-os", {
+            body: "Notifications are working! 🎉",
+            icon: window.location.origin + "/logo.svg",
+            silent: false,
+          });
+        } catch (_) {}
+      });
 
       // Bootstrap: load the variant list, build the sidebar, open a socket per variant.
       if (Notification.permission === "default") Notification.requestPermission();
