@@ -5,7 +5,7 @@ import type { ServerWebSocket } from "bun";
 import { listVariants, getVariant } from "./persona.js";
 import { Variant } from "./variant.js";
 import { ensureVariantHome } from "./workspace.js";
-import { loadHistory, appendMessage, formatTranscript } from "./history.js";
+import { loadHistory, appendMessage, formatTranscript, clearHistory } from "./history.js";
 
 /**
  * Web chat UI for the variants.
@@ -96,6 +96,15 @@ const server = Bun.serve<WSData>({
         return new Response(Bun.file(full), { headers: { "content-type": PIC_TYPES[ext] } });
       }
       return new Response("not found", { status: 404 });
+    }
+
+    if (req.method === "DELETE" && url.pathname.startsWith("/history/")) {
+      const variantId = url.pathname.slice("/history/".length);
+      if (!variantId || !listVariants().some((v) => v.id === variantId)) {
+        return new Response("not found", { status: 404 });
+      }
+      clearHistory(variantId);
+      return new Response(null, { status: 204 });
     }
 
     return new Response("not found", { status: 404 });
