@@ -142,7 +142,7 @@ function spawnVariant(ws: ServerWebSocket<WSData>, identity: VariantIdentity) {
 
 const server = Bun.serve<WSData>({
   port,
-  fetch(req, server) {
+  async fetch(req, server) {
     const url = new URL(req.url);
 
     if (url.pathname === "/ws") {
@@ -174,7 +174,7 @@ const server = Bun.serve<WSData>({
       const uploadsDir = join(workdir, "uploads");
       mkdirSync(uploadsDir, { recursive: true });
 
-      let form: FormData;
+      let form: Awaited<ReturnType<typeof req.formData>>;
       try { form = await req.formData(); } catch {
         return new Response("invalid multipart data", { status: 400 });
       }

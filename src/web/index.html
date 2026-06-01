@@ -97,6 +97,7 @@
       .sdot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
       .sdot.live { background: var(--ok); }
       .sdot.working { background: var(--warn); animation: pulse 1s infinite; }
+      .sdot.done { background: #22c55e; }
 
       /* ---- Chat pane ---- */
       #chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -434,6 +435,7 @@
 
       <form id="form">
         <div id="attachRow"></div>
+        <div id="attachments"></div>
         <div class="compose">
           <input type="file" id="fileInput" style="display:none" multiple />
           <button type="button" id="attachBtn" title="Attach file" disabled>&#128206;</button>
@@ -564,9 +566,10 @@
         const node = document.querySelector(`.variant[data-id="${id}"]`);
         if (!node || !s) return;
         const dot = node.querySelector(".sdot");
-        dot.className = "sdot " + (s.working ? "working" : s.live ? "live" : "");
+        const label = s.working ? "working" : (s.hasDone ? "done" : (s.live ? "live" : ""));
+        dot.className = "sdot " + label;
         node.querySelector(".state").lastChild.textContent =
-          s.working ? "working…" : s.live ? "online" : "offline";
+          s.working ? "working…" : s.hasDone ? "done" : s.live ? "online" : "offline";
       }
 
       function renderLog() {
@@ -593,12 +596,7 @@
         } else {
           const row = document.createElement("div");
           row.className = "row " + m.who;
-          if (m.who === "andrew") {
-            const av = document.createElement("img");
-            av.className = "av";
-            av.src = m.avatar;
-            row.appendChild(av);
-          }
+
           const b = document.createElement("div");
           b.className = "bubble";
           if (m.who === "andrew") { b.innerHTML = renderMd(m.text); } else { b.textContent = m.text; }
@@ -614,6 +612,8 @@
         activeId = id;
         document.querySelectorAll(".variant").forEach((n) => n.classList.toggle("active", n.dataset.id === id));
         const s = sessions[id];
+        s.hasDone = false;
+        setSidebarState(id);
         $("hAvatar").src = s.meta.avatar;
         $("hName").textContent = s.meta.name;
         $("hWorkdir").textContent = s.meta.workdir ? "working in: " + s.meta.workdir : "";
@@ -696,6 +696,7 @@
           if (e.kind === "turn_end" || e.kind === "interrupted") {
             if (s.streaming) { s.streaming.streaming = false; s.streaming = null; }
             s.lastProgress = null;
+            if (activeId !== meta.id) s.hasDone = true;
             setWorking(meta.id, false);
             if (activeId === meta.id) { clearActivity(); renderLog(); }
             if (e.kind === "turn_end") notify(s.meta.name, "Done thinking.", s.meta.avatar, meta.id);
@@ -710,6 +711,7 @@
                        : e.kind === "blocked" ? "⚠️ blocked: " + e.question
                        : "❌ " + e.error;
             s.messages.push({ kind: "note", noteKind: e.kind, text });
+            if (activeId !== meta.id) s.hasDone = true;
             if (e.kind === "error") setWorking(meta.id, false);
             else setSidebarState(meta.id);
             if (activeId === meta.id) { appendNode({ kind: "note", noteKind: e.kind, text }); }
@@ -925,7 +927,7 @@
 
       fetch("/variants").then((r) => r.json()).then((list) => {
         list.forEach((v, i) => {
-          sessions[v.id] = { meta: v, ws: null, working: false, lastProgress: null, live: false, streaming: null, messages: [], pendingInput: null };
+          sessions[v.id] = { meta: v, ws: null, working: false, hasDone: false, lastProgress: null, live: false, streaming: null, messages: [], pendingInput: null };
 
           const node = document.createElement("div");
           node.className = "variant";
