@@ -1054,9 +1054,6 @@
       });
 
       function notify(title, body, avatar, variantId) {
-        // Only stay silent when the user is actually looking at THIS variant's chat
-        // (tab focused AND this variant open). Background variants still notify.
-        if (document.visibilityState === "visible" && variantId === activeId) return;
         if (Notification.permission !== "granted") return;
         const icon = avatar ? window.location.origin + avatar : undefined;
         try { new Notification(title, { body, icon, tag: variantId, silent: false }); } catch (_) {}
