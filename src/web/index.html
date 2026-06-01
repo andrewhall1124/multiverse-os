@@ -261,6 +261,15 @@
             if (activeId === meta.id) selectVariant(meta.id);
             return;
           }
+          if (e.kind === "history") {
+            s.messages = e.messages.map((m) => {
+              if (m.role === "user") return { who: "me", text: m.text };
+              if (m.role === "assistant") return { who: "andrew", text: m.text, avatar: s.meta.avatar };
+              return { kind: "note", noteKind: m.noteKind, text: m.text };
+            });
+            if (activeId === meta.id) renderLog();
+            return;
+          }
           if (e.kind === "text") {
             if (!s.streaming) {
               s.streaming = { who: "andrew", text: "", avatar: s.meta.avatar, streaming: true };
