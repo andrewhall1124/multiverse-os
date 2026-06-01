@@ -111,7 +111,6 @@ const server = Bun.serve<WSData>({
         }),
       );
 
-      // Restore prior history to the browser.
       const history = loadHistory(identity.id);
       if (history.length > 0) {
         ws.send(JSON.stringify({ kind: "history", messages: history }));
@@ -145,6 +144,14 @@ const server = Bun.serve<WSData>({
             ws.send(JSON.stringify(e));
             if (e.kind === "text") {
               assistantBuffers.set(ws, (assistantBuffers.get(ws) ?? "") + e.text);
+            } else if (e.kind === "progress") {
+              // Flush accumulated text before each tool call so history entries mirror
+              // the UI's per-segment bubble splitting.
+              const buf = assistantBuffers.get(ws) ?? "";
+              if (buf.trim().length > 0) {
+                appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
+                assistantBuffers.set(ws, "");
+              }
             } else if (e.kind === "turn_end") {
               const buf = assistantBuffers.get(ws) ?? "";
               if (buf.trim().length > 0) {
