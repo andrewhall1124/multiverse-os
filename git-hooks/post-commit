@@ -1,6 +1,7 @@
 #!/bin/sh
-# Auto-push after every commit on andrew/* branches.
+# Auto-push after every commit on variant/* branches (any <id>/<task> that isn't protected).
 branch=$(git rev-parse --abbrev-ref HEAD)
 case "$branch" in
-  andrew/*) git push origin "$branch" ;;
+  main|master|dev|develop) ;;
+  */*) git push origin "$branch" ;;
 esac

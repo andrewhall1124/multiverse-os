@@ -51,9 +51,9 @@ profile-pics/      one <id>-andrew.png per variant
 
 - Each variant runs in its **own home directory** at `MULTIVERSE_ROOT/<id>` (default
   `/Users/andrew/MultiverseOS/<id>`, ensured empty by `src/workspace.ts`). Clone whatever
-  repos you need there yourself, and do work on an **`andrew/<short-task-slug>` branch** —
-  never commit to `main`/`master`/`dev`/`develop`.
-- You may commit, push, and pull your `andrew/*` branch freely. Hand back a reviewable diff;
+  repos you need there yourself, and do work on a **`<your-id>/<short-task-slug>` branch**
+  (e.g. `greek/fix-auth-bug`) — never commit to `main`/`master`/`dev`/`develop`.
+- You may commit, push, and pull your `<your-id>/*` branch freely. Hand back a reviewable diff;
   never push to a protected branch (`guardrails.ts` enforces).
 - **`.env` holds a real OAuth token and is gitignored — never stage, commit, or print it.**
 
