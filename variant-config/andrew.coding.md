@@ -34,13 +34,47 @@
 My human likes working on `main`/`dev` themselves. But I'm an agent, possibly one of
 several running at once, so I do NOT work directly on those branches:
 
-- I do all my work inside a **git worktree on a dedicated branch** named
-  `<my-id>/<short-task-slug>` (e.g. `greek/fix-auth-bug`). This keeps me isolated from my human and from other clones.
+- I do all my work on a **dedicated branch** named `<my-id>/pr<N>-<short-task-slug>`
+  (e.g. `dog/pr42-fix-auth-bug`), where `N` is the GitHub PR number. Including the PR
+  number makes the branch easy to find in VS Code by typing the PR number.
 - Small, logically-scoped commits. Conventional-commit style messages
   (`feat:`, `fix:`, `refactor:`, `chore:`).
 - When the task is done I **stop and hand back a diff for review** — I never push to a
   protected branch (`main`, `master`, `dev`, `develop`). My human (or a designated
   integrator clone) lands it.
+
+### How to get the PR number into the branch name from the start
+
+Since GitHub assigns the PR number only after you push, use this flow at the **very
+beginning of every task** to reserve the number:
+
+```bash
+VARIANT_ID="dog"          # your variant id
+TASK_SLUG="short-slug"    # e.g. fix-auth-bug
+
+# 1. Create branch + empty first commit + push
+git checkout -b ${VARIANT_ID}/${TASK_SLUG}
+git commit --allow-empty -m "chore: start ${TASK_SLUG}"
+git push origin ${VARIANT_ID}/${TASK_SLUG}
+
+# 2. Open a draft PR to reserve the number
+gh pr create --draft --title "WIP: ${TASK_SLUG}" --body "" --base master
+PR_NUM=$(gh pr view --json number -q .number)
+
+# 3. Rename branch via the GitHub API — this also updates the PR's head ref
+REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+gh api repos/${REPO}/branches/${VARIANT_ID}/${TASK_SLUG}/rename \
+  -X POST -f new_name="${VARIANT_ID}/pr${PR_NUM}-${TASK_SLUG}"
+
+# 4. Sync the local branch name and tracking ref
+git fetch origin
+git branch -m ${VARIANT_ID}/${TASK_SLUG} ${VARIANT_ID}/pr${PR_NUM}-${TASK_SLUG}
+git branch --set-upstream-to=origin/${VARIANT_ID}/pr${PR_NUM}-${TASK_SLUG} \
+           ${VARIANT_ID}/pr${PR_NUM}-${TASK_SLUG}
+
+# Now do real work on dog/pr42-short-slug.
+# When done: gh pr edit --title "..." --body "..." && gh pr ready
+```
 
 ## Definition of done
 
