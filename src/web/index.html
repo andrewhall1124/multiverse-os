@@ -692,10 +692,10 @@
       }
 
       function sortSidebar() {
-        const sidebar = document.getElementById("sidebar");
-        const nodes = [...sidebar.querySelectorAll(".variant")];
+        const container = document.getElementById("variants");
+        const nodes = [...container.querySelectorAll(".variant")];
         nodes.sort((a, b) => statusRank(a.dataset.id) - statusRank(b.dataset.id));
-        for (const n of nodes) sidebar.appendChild(n);
+        for (const n of nodes) container.appendChild(n);
       }
 
       function setSidebarState(id) {
