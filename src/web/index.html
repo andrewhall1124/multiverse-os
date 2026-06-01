@@ -593,12 +593,7 @@
         } else {
           const row = document.createElement("div");
           row.className = "row " + m.who;
-          if (m.who === "andrew") {
-            const av = document.createElement("img");
-            av.className = "av";
-            av.src = m.avatar;
-            row.appendChild(av);
-          }
+
           const b = document.createElement("div");
           b.className = "bubble";
           if (m.who === "andrew") { b.innerHTML = renderMd(m.text); } else { b.textContent = m.text; }
