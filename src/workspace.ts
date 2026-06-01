@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, copyFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, copyFileSync, existsSync, chmodSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -35,9 +35,7 @@ export function ensureVariantHome(id: string): string {
   if (existsSync(HOOK_SRC)) {
     copyFileSync(HOOK_SRC, join(templateHooksDir, "post-commit"));
     // copyFileSync doesn't preserve permissions — set executable bit explicitly.
-    import("node:fs").then(({ chmodSync }) =>
-      chmodSync(join(templateHooksDir, "post-commit"), 0o755),
-    );
+    chmodSync(join(templateHooksDir, "post-commit"), 0o755);
   }
 
   // Per-variant gitconfig: points init.templateDir at our template so every

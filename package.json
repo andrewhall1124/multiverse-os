@@ -1,9 +1,9 @@
 {
-  "name": "muppet-andrew",
+  "name": "multiverse-os",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A single coding variant ('Muppet Andrew') built on the Claude Agent SDK harness.",
+  "description": "A small team of coding variants built on the Claude Agent SDK.",
   "scripts": {
     "chat": "bun run src/chat.ts",
     "dev": "bun --watch src/chat.ts",
