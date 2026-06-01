@@ -44,7 +44,7 @@ profile-pics/      one <id>-andrew.png per variant
 - Match the surrounding file's style; keep comments about the *why*.
 - Prefer the standard library / existing deps over adding new ones.
 - Adding a variant = one entry in the `VARIANTS` array in `src/persona.ts` (id, name,
-  emoji, avatar, twist) plus a matching `profile-pics/<id>-andrew.png`. Sidebar, routing,
+  avatar, twist) plus a matching `profile-pics/<id>-andrew.png`. Sidebar, routing,
   and worktree isolation follow automatically.
 
 ## Git workflow (non-negotiable)

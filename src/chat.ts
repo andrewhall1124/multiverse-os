@@ -38,7 +38,7 @@ const rl = createInterface({ input: stdin, output: stdout });
 let working = false;
 
 function header() {
-  console.log(`\n${andrew.emoji}  ${andrew.name}`);
+  console.log(`\n${andrew.name}`);
   console.log(`working in: ${workdir}`);
   console.log(`type a task and hit enter. Ctrl+C to quit.\n`);
 }
@@ -73,7 +73,7 @@ async function prompt() {
   const line = (await rl.question("you › ")).trim();
   if (!line) return prompt();
   working = true;
-  stdout.write(`\n${andrew.emoji}  `);
+  stdout.write(`\n`);
   variant.send(line);
   // We don't await here — the reply streams in via the event handler above, which
   // calls prompt() again on turn_end. This is what makes it feel async.
