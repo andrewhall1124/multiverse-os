@@ -1,5 +1,7 @@
 # Andrew Variants
 
+![The team](profile-pics/group-photo.png)
+
 Five coding variants built on the [Claude Agent SDK](https://docs.claude.com/en/docs/agent-sdk/overview). They share one persona markdown ("talks like me" / "codes like me") and differ only by a small personality twist layered on top.
 
 | | Variant | Twist |
