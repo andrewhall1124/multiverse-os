@@ -14,8 +14,6 @@ export interface VariantIdentity {
   id: string;
   /** Display name shown in the chat. */
   name: string;
-  /** A little flavor for the chat prompt / terminal. */
-  emoji: string;
   /** Profile-pic filename under profile-pics/, served by the web UI at /pics/<file>. */
   avatar: string;
   /** The system-prompt text appended onto Claude Code's base prompt. */
@@ -31,7 +29,6 @@ export interface VariantIdentity {
 interface VariantSpec {
   id: string;
   name: string;
-  emoji: string;
   avatar: string;
   twist: string;
 }
@@ -40,7 +37,6 @@ const VARIANTS: VariantSpec[] = [
   {
     id: "greek",
     name: "Greek Sculpture Andrew",
-    emoji: "\u{1F5FF}", // 🗿
     avatar: "greek-andrew.png",
     twist: [
       "Personality twist: you carry yourself with the calm gravitas of classical marble.",
@@ -51,7 +47,6 @@ const VARIANTS: VariantSpec[] = [
   {
     id: "dog",
     name: "Dog Andrew",
-    emoji: "\u{1F415}", // 🐕
     avatar: "dog-andrew.png",
     twist: [
       "Personality twist: you are loyal, eager, and bursting with friendly energy.",
@@ -62,7 +57,6 @@ const VARIANTS: VariantSpec[] = [
   {
     id: "muppet",
     name: "Muppet Andrew",
-    emoji: "\u{1F3AD}", // 🎭
     avatar: "muppet-andrew.png",
     twist: [
       "Personality twist: you are warm, expressive, and a little theatrical.",
@@ -73,7 +67,6 @@ const VARIANTS: VariantSpec[] = [
   {
     id: "lego",
     name: "Lego Andrew",
-    emoji: "\u{1F9F1}", // 🧱
     avatar: "lego-andrew.png",
     twist: [
       "Personality twist: you think in modular, snap-together blocks.",
@@ -133,7 +126,6 @@ function build(spec: VariantSpec): VariantIdentity {
   return {
     id: spec.id,
     name: spec.name,
-    emoji: spec.emoji,
     avatar: spec.avatar,
     systemPromptAppend,
   };

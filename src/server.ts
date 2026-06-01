@@ -12,7 +12,7 @@ import { loadHistory, appendMessage, formatTranscript } from "./history.js";
  *
  * Layout:
  *   GET  /            -> the single-page chat app (sidebar of variants + chat pane)
- *   GET  /variants    -> JSON list of {id, name, emoji, avatar} for the sidebar
+ *   GET  /variants    -> JSON list of {id, name, avatar} for the sidebar
  *   GET  /pics/<file> -> a profile pic from profile-pics/
  *   WS   /ws?variant=<id> -> a live chat session backed by one Variant for that persona
  *
@@ -43,7 +43,6 @@ const html = readFileSync(join(__dirname, "web", "index.html"), "utf8");
 const variantList = listVariants().map((v) => ({
   id: v.id,
   name: v.name,
-  emoji: v.emoji,
   avatar: `/pics/${v.avatar}`,
 }));
 
@@ -107,7 +106,6 @@ const server = Bun.serve<WSData>({
           kind: "meta",
           id: identity.id,
           name: identity.name,
-          emoji: identity.emoji,
           avatar: `/pics/${identity.avatar}`,
           workdir,
         }),
