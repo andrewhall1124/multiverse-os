@@ -561,6 +561,22 @@
       const sessions = {}; // id -> { meta, ws, status, working, lastProgress, messages: [{who, kind, text, avatar}], live, streaming }
       let activeId = null;
 
+      function statusRank(id) {
+        const s = sessions[id];
+        if (!s) return 4;
+        if (s.working) return 0;
+        if (s.hasDone) return 1;
+        if (s.live) return 2;
+        return 3;
+      }
+
+      function sortSidebar() {
+        const sidebar = document.getElementById("sidebar");
+        const nodes = [...sidebar.querySelectorAll(".variant")];
+        nodes.sort((a, b) => statusRank(a.dataset.id) - statusRank(b.dataset.id));
+        for (const n of nodes) sidebar.appendChild(n);
+      }
+
       function setSidebarState(id) {
         const s = sessions[id];
         const node = document.querySelector(`.variant[data-id="${id}"]`);
@@ -570,6 +586,7 @@
         dot.className = "sdot " + label;
         node.querySelector(".state").lastChild.textContent =
           s.working ? "working…" : s.hasDone ? "done" : s.live ? "online" : "offline";
+        sortSidebar();
       }
 
       function renderLog() {
