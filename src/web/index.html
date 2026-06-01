@@ -159,7 +159,8 @@
       }
       @keyframes spin { to { transform: rotate(360deg); } }
 
-      form { display: flex; gap: 10px; padding: 14px 20px; background: var(--panel); border-top: 1px solid var(--border); }
+      form { display: flex; flex-direction: column; background: var(--panel); border-top: 1px solid var(--border); }
+      .compose { display: flex; gap: 10px; padding: 14px 20px; align-items: flex-end; }
       textarea {
         flex: 1; resize: none; background: var(--bg); color: var(--text);
         border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; max-height: 160px;
@@ -167,6 +168,29 @@
       textarea:focus { outline: none; border-color: var(--accent); }
       button { background: var(--accent); color: var(--on-accent); border: none; border-radius: 10px; padding: 0 20px; font: inherit; font-weight: 600; cursor: pointer; }
       button:disabled { opacity: 0.5; cursor: default; }
+
+      #attachBtn {
+        background: transparent; color: var(--muted); border: 1px solid var(--border);
+        border-radius: 10px; padding: 0 12px; height: 42px; flex-shrink: 0; font-size: 16px; line-height: 1;
+      }
+      #attachBtn:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
+      #attachRow {
+        display: none; flex-wrap: wrap; gap: 6px;
+        padding: 10px 20px 0;
+      }
+      #attachRow.visible { display: flex; }
+      .attach-pill {
+        display: flex; align-items: center; gap: 5px;
+        background: var(--panel2); border: 1px solid var(--border); border-radius: 6px;
+        padding: 3px 8px; font-size: 12px; max-width: 220px;
+      }
+      .attach-pill .pill-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+      .attach-pill .pill-remove {
+        background: transparent; color: var(--muted); border: none; border-radius: 0;
+        padding: 0; font-size: 14px; line-height: 1; cursor: pointer; flex-shrink: 0;
+        font-weight: 600;
+      }
+      .attach-pill .pill-remove:hover { color: var(--text); }
 
       /* ---- Brand header + theme toggle ---- */
       #brand {
@@ -280,8 +304,13 @@
       <div id="activity"><div class="spinner"></div><span id="activityText"></span></div>
 
       <form id="form">
-        <textarea id="input" rows="1" placeholder="Give Andrew a task… (Enter to send, Shift+Enter for newline)" disabled></textarea>
-        <button id="send" type="submit" disabled>Send</button>
+        <div id="attachRow"></div>
+        <div class="compose">
+          <input type="file" id="fileInput" style="display:none" multiple />
+          <button type="button" id="attachBtn" title="Attach file" disabled>&#128206;</button>
+          <textarea id="input" rows="1" placeholder="Give Andrew a task… (Enter to send, Shift+Enter for newline)" disabled></textarea>
+          <button id="send" type="submit" disabled>Send</button>
+        </div>
       </form>
     </section>
 
@@ -317,8 +346,65 @@
       const form = $("form");
       const input = $("input");
       const sendBtn = $("send");
+      const attachBtn = $("attachBtn");
+      const fileInput = $("fileInput");
+      const attachRow = $("attachRow");
       const activityEl = $("activity");
       const activityText = $("activityText");
+
+      // Per-variant pending attachments: variantId -> [{name, path, size}]
+      const pendingAttachments = {};
+
+      function getAttachments() { return pendingAttachments[activeId] ?? []; }
+
+      function renderAttachments() {
+        const list = getAttachments();
+        attachRow.innerHTML = "";
+        attachRow.classList.toggle("visible", list.length > 0);
+        list.forEach((a, i) => {
+          const pill = document.createElement("div");
+          pill.className = "attach-pill";
+          const name = document.createElement("span");
+          name.className = "pill-name";
+          name.textContent = a.name;
+          name.title = a.path;
+          const rm = document.createElement("button");
+          rm.type = "button";
+          rm.className = "pill-remove";
+          rm.textContent = "×";
+          rm.title = "Remove";
+          rm.addEventListener("click", () => {
+            getAttachments().splice(i, 1);
+            renderAttachments();
+          });
+          pill.appendChild(name);
+          pill.appendChild(rm);
+          attachRow.appendChild(pill);
+        });
+      }
+
+      attachBtn.addEventListener("click", () => fileInput.click());
+
+      fileInput.addEventListener("change", async () => {
+        const files = Array.from(fileInput.files ?? []);
+        fileInput.value = "";
+        if (!files.length || !activeId) return;
+
+        for (const file of files) {
+          const fd = new FormData();
+          fd.append("file", file);
+          try {
+            const res = await fetch(`/upload?variant=${encodeURIComponent(activeId)}`, { method: "POST", body: fd });
+            if (!res.ok) { console.error("upload failed", await res.text()); continue; }
+            const data = await res.json();
+            if (!pendingAttachments[activeId]) pendingAttachments[activeId] = [];
+            pendingAttachments[activeId].push(data);
+            renderAttachments();
+          } catch (err) {
+            console.error("upload error", err);
+          }
+        }
+      });
 
       function updateActivity({ tool, summary }) {
         activityText.textContent = `${tool}: ${summary}`;
@@ -391,11 +477,13 @@
         $("hName").textContent = s.meta.name;
         $("hWorkdir").textContent = s.meta.workdir ? "working in: " + s.meta.workdir : "";
         input.disabled = false;
+        attachBtn.disabled = false;
         sendBtn.disabled = !s.live;
         if (s.working && s.lastProgress) updateActivity(s.lastProgress);
         else clearActivity();
         input.focus();
         renderLog();
+        renderAttachments();
       }
 
       function connect(meta) {
@@ -477,8 +565,18 @@
 
       function submit() {
         const s = sessions[activeId];
-        const text = input.value.trim();
-        if (!s || !text || !s.live || s.ws.readyState !== WebSocket.OPEN) return;
+        let text = input.value.trim();
+        const attachments = getAttachments();
+        if (!s || (!text && !attachments.length) || !s.live || s.ws.readyState !== WebSocket.OPEN) return;
+
+        if (attachments.length > 0) {
+          const fileList = attachments.map((a) => a.path).join("\n");
+          const note = `[Attached files — available in your workdir:\n${fileList}]`;
+          text = text ? note + "\n\n" + text : note;
+          pendingAttachments[activeId] = [];
+          renderAttachments();
+        }
+
         s.messages.push({ who: "me", text });
         appendNode({ who: "me", text });
         s.ws.send(text);
