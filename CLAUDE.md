@@ -6,7 +6,7 @@ defaults** on project specifics.
 
 ## What this project is
 
-A small team of coding **variants** (Greek, Dog, Muppet, Lego Andrew) built on the
+A small team of coding **variants** (Greco, Teddy, Walter, Emmet) built on the
 **Claude Agent SDK** (`@anthropic-ai/claude-agent-sdk`). The variants share one persona
 (`variant-config/andrew.identity.md` + `andrew.coding.md`) and differ only by a per-variant
 `twist` in `src/persona.ts`. This repo is **self-hosting**: the variants develop their own
