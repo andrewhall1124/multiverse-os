@@ -132,22 +132,6 @@
       }
       @keyframes spin { to { transform: rotate(360deg); } }
 
-      /* ---- Progress toggle button in header ---- */
-      #progressToggle {
-        margin-left: auto;
-        font-size: 11px;
-        color: var(--muted);
-        background: none;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        padding: 3px 9px;
-        cursor: pointer;
-        font: inherit;
-        font-weight: 500;
-      }
-      #progressToggle:hover { color: var(--text); border-color: var(--text); }
-      #progressToggle:disabled { display: none; }
-
       form { display: flex; gap: 10px; padding: 14px 20px; background: var(--panel); border-top: 1px solid var(--border); }
       textarea {
         flex: 1; resize: none; background: var(--bg); color: var(--text);
@@ -171,7 +155,6 @@
           <div class="title" id="hName">Pick a variant</div>
           <div class="sub" id="hWorkdir"></div>
         </div>
-        <button id="progressToggle" type="button" disabled>Show progress</button>
       </div>
 
       <div id="log"><div id="empty">Select a variant on the left to start chatting.</div></div>
@@ -218,28 +201,8 @@
       const sendBtn = $("send");
       const activityEl = $("activity");
       const activityText = $("activityText");
-      const progressToggle = $("progressToggle");
-
-      // showProgress is global and persisted — toggle affects all variants.
-      let showProgress = localStorage.getItem("showProgress") !== "false";
-
-      function applyProgressToggle() {
-        progressToggle.textContent = showProgress ? "Hide progress" : "Show progress";
-        if (!showProgress) activityEl.classList.remove("visible");
-      }
-      applyProgressToggle();
-
-      progressToggle.addEventListener("click", () => {
-        showProgress = !showProgress;
-        localStorage.setItem("showProgress", showProgress);
-        applyProgressToggle();
-        // If we're currently working and just toggled on, show the last known progress.
-        const s = sessions[activeId];
-        if (showProgress && s?.lastProgress) updateActivity(s.lastProgress);
-      });
 
       function updateActivity({ tool, summary }) {
-        if (!showProgress) return;
         activityText.textContent = `${tool}: ${summary}`;
         activityEl.classList.add("visible");
       }
@@ -311,8 +274,6 @@
         $("hWorkdir").textContent = s.meta.workdir ? "working in: " + s.meta.workdir : "";
         input.disabled = false;
         sendBtn.disabled = !s.live;
-        progressToggle.disabled = false;
-        // Reflect the active session's current progress state.
         if (s.working && s.lastProgress) updateActivity(s.lastProgress);
         else clearActivity();
         input.focus();
