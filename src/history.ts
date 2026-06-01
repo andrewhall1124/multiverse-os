@@ -8,7 +8,7 @@ const dataDir = join(__dirname, "..", "data");
 export type PersistedMessage =
   | { role: "user"; text: string; ts: number }
   | { role: "assistant"; text: string; ts: number }
-  | { role: "note"; noteKind: "done" | "blocked" | "error"; text: string; ts: number };
+  | { role: "note"; noteKind: "done" | "blocked" | "error" | "input_request"; text: string; ts: number };
 
 function historyPath(variantId: string): string {
   return join(dataDir, `chat-${variantId}.json`);

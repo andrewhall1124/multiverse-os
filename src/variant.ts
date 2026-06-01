@@ -24,6 +24,7 @@ export type VariantEvent =
   | { kind: "turn_end" } // model finished responding to the current message
   | { kind: "done"; summary: string } // task complete, ready for review
   | { kind: "blocked"; question: string } // needs a human decision
+  | { kind: "input_request"; prompt: string; expected: "text" | "choice"; options?: string[] } // structured user input
   | { kind: "progress"; tool: string; summary: string } // tool use in flight
   | { kind: "error"; error: string };
 
@@ -146,8 +147,10 @@ export class Variant {
           // The model finished responding to the current human message.
           const done = matchLine(turnBuffer, "DONE:");
           const blocked = matchLine(turnBuffer, "BLOCKED:");
+          const inputReq = parseInputRequest(turnBuffer);
           if (done) on({ kind: "done", summary: done });
           else if (blocked) on({ kind: "blocked", question: blocked });
+          else if (inputReq) on(inputReq);
           on({ kind: "turn_end" });
           turnBuffer = "";
         }
@@ -156,6 +159,28 @@ export class Variant {
       on({ kind: "error", error: err instanceof Error ? err.message : String(err) });
     }
   }
+}
+
+// Parses INPUT_REQUEST: lines in two formats:
+//   INPUT_REQUEST: text: What is the API key?
+//   INPUT_REQUEST: choice: Which branch? | main | dev | other
+function parseInputRequest(text: string): Extract<VariantEvent, { kind: "input_request" }> | null {
+  const line = matchLine(text, "INPUT_REQUEST:");
+  if (!line) return null;
+  const sep = line.indexOf(":");
+  if (sep === -1) return null;
+  const type = line.slice(0, sep).trim();
+  const rest = line.slice(sep + 1).trim();
+  if (type === "choice") {
+    const parts = rest.split("|").map((s) => s.trim()).filter(Boolean);
+    if (parts.length < 2) return null;
+    const [prompt, ...options] = parts;
+    return { kind: "input_request", prompt, expected: "choice", options };
+  }
+  if (type === "text") {
+    return { kind: "input_request", prompt: rest, expected: "text" };
+  }
+  return null;
 }
 
 function matchLine(text: string, prefix: string): string | null {

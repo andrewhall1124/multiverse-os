@@ -134,6 +134,55 @@
       .note.done { color: var(--ok); border-color: var(--ok); }
       .note.blocked { color: var(--warn); border-color: var(--warn); }
       .note.error { color: var(--err); border-color: var(--err); }
+      .note.input_request { color: var(--accent); border-color: var(--accent); }
+
+      /* ---- Input request card ---- */
+      .input-card {
+        align-self: stretch;
+        background: var(--panel);
+        border: 1px solid var(--accent);
+        border-radius: 12px;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .input-card-prompt { font-weight: 600; font-size: 14px; }
+      .input-card-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+      .choice-btn {
+        background: var(--panel2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 16px;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .choice-btn:hover { border-color: var(--accent); color: var(--accent); }
+      .input-card-text-row { display: flex; gap: 8px; }
+      .input-card-text {
+        flex: 1;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 7px 10px;
+        font: inherit;
+        font-size: 13px;
+      }
+      .input-card-text:focus { outline: none; border-color: var(--accent); }
+      .input-card button {
+        background: var(--accent);
+        color: var(--on-accent);
+        border: none;
+        border-radius: 8px;
+        padding: 0 16px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
 .cursor::after { content: "▍"; color: var(--muted); animation: pulse 1s infinite; }
       @keyframes pulse { 50% { opacity: 0.3; } }
 
@@ -346,7 +395,7 @@
       function renderLog() {
         const s = sessions[activeId];
         logEl.innerHTML = "";
-        if (!s || s.messages.length === 0) {
+        if (!s || (s.messages.length === 0 && !s.pendingInput)) {
           const e = document.createElement("div");
           e.id = "empty";
           e.textContent = "Say hi to " + (s ? s.meta.name : "Andrew") + " — give them a task.";
@@ -354,6 +403,7 @@
           return;
         }
         for (const m of s.messages) appendNode(m);
+        if (s.pendingInput) logEl.appendChild(buildInputCard(s));
         logEl.scrollTop = logEl.scrollHeight;
       }
 
@@ -461,6 +511,10 @@
             notify(s.meta.name, "Done thinking.", s.meta.avatar, meta.id);
             return;
           }
+          if (e.kind === "input_request") {
+            s.pendingInput = { prompt: e.prompt, expected: e.expected, options: e.options };
+            return;
+          }
           if (e.kind === "done" || e.kind === "blocked" || e.kind === "error") {
             const text = e.kind === "done" ? "✅ " + e.summary
                        : e.kind === "blocked" ? "⚠️ blocked: " + e.question
@@ -473,6 +527,63 @@
             notify(s.meta.name + (e.kind === "blocked" ? " needs input" : e.kind === "error" ? " errored" : " finished"), notifBody, s.meta.avatar, meta.id);
           }
         };
+      }
+
+      function buildInputCard(s) {
+        const card = document.createElement("div");
+        card.className = "input-card";
+
+        const prompt = document.createElement("div");
+        prompt.className = "input-card-prompt";
+        prompt.textContent = s.pendingInput.prompt;
+        card.appendChild(prompt);
+
+        if (s.pendingInput.expected === "choice") {
+          const choices = document.createElement("div");
+          choices.className = "input-card-choices";
+          for (const opt of (s.pendingInput.options ?? [])) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "choice-btn";
+            btn.textContent = opt;
+            btn.addEventListener("click", () => submitInputResponse(s, opt));
+            choices.appendChild(btn);
+          }
+          card.appendChild(choices);
+        } else {
+          const row = document.createElement("div");
+          row.className = "input-card-text-row";
+          const textInput = document.createElement("input");
+          textInput.type = "text";
+          textInput.className = "input-card-text";
+          textInput.placeholder = "Type your answer…";
+          const submitBtn = document.createElement("button");
+          submitBtn.type = "button";
+          submitBtn.textContent = "Submit";
+          submitBtn.addEventListener("click", () => {
+            const val = textInput.value.trim();
+            if (val) submitInputResponse(s, val);
+          });
+          textInput.addEventListener("keydown", (ev) => {
+            if (ev.key === "Enter") { const val = textInput.value.trim(); if (val) submitInputResponse(s, val); }
+          });
+          row.appendChild(textInput);
+          row.appendChild(submitBtn);
+          card.appendChild(row);
+          setTimeout(() => textInput.focus(), 50);
+        }
+        return card;
+      }
+
+      function submitInputResponse(s, response) {
+        if (!s.ws || s.ws.readyState !== WebSocket.OPEN) return;
+        s.pendingInput = null;
+        s.messages.push({ who: "me", text: response });
+        s.working = true;
+        setSidebarState(s.meta.id);
+        sendBtn.disabled = true;
+        s.ws.send(JSON.stringify({ kind: "input_response", response }));
+        if (activeId === s.meta.id) renderLog();
       }
 
       function submit() {
@@ -505,7 +616,7 @@
 
       fetch("/variants").then((r) => r.json()).then((list) => {
         list.forEach((v, i) => {
-          sessions[v.id] = { meta: v, ws: null, working: false, lastProgress: null, live: false, streaming: null, messages: [] };
+          sessions[v.id] = { meta: v, ws: null, working: false, lastProgress: null, live: false, streaming: null, messages: [], pendingInput: null };
 
           const node = document.createElement("div");
           node.className = "variant";
