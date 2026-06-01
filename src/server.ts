@@ -1,11 +1,11 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, basename } from "node:path";
 import type { ServerWebSocket } from "bun";
 import { listVariants, getVariant } from "./persona.js";
 import { Variant } from "./variant.js";
 import { ensureVariantHome } from "./workspace.js";
-import { loadHistory, appendMessage, formatTranscript } from "./history.js";
+import { loadHistory, appendMessage, formatTranscript, clearHistory } from "./history.js";
 
 /**
  * Web chat UI for the variants.
@@ -87,6 +87,26 @@ const server = Bun.serve<WSData>({
       return Response.json(variantList);
     }
 
+    if (url.pathname === "/upload" && req.method === "POST") {
+      const variantId = url.searchParams.get("variant") ?? "muppet";
+      if (!getVariant(variantId)) return new Response("variant not found", { status: 404 });
+      const workdir = ensureVariantHome(variantId);
+      const uploadsDir = join(workdir, "uploads");
+      mkdirSync(uploadsDir, { recursive: true });
+
+      let form: FormData;
+      try { form = await req.formData(); } catch {
+        return new Response("invalid multipart data", { status: 400 });
+      }
+      const uploaded = form.get("file");
+      if (!uploaded || !(uploaded instanceof File)) return new Response("no file field", { status: 400 });
+
+      const safeName = basename(uploaded.name).replace(/[^a-zA-Z0-9._-]/g, "_") || "file";
+      const destPath = join(uploadsDir, safeName);
+      writeFileSync(destPath, Buffer.from(await uploaded.arrayBuffer()));
+      return Response.json({ path: destPath, name: uploaded.name, size: uploaded.size });
+    }
+
     if (url.pathname.startsWith("/pics/")) {
       // basename() strips any path traversal; only serve from picsDir.
       const file = basename(url.pathname.slice("/pics/".length));
@@ -96,6 +116,15 @@ const server = Bun.serve<WSData>({
         return new Response(Bun.file(full), { headers: { "content-type": PIC_TYPES[ext] } });
       }
       return new Response("not found", { status: 404 });
+    }
+
+    if (req.method === "DELETE" && url.pathname.startsWith("/history/")) {
+      const variantId = url.pathname.slice("/history/".length);
+      if (!variantId || !listVariants().some((v) => v.id === variantId)) {
+        return new Response("not found", { status: 404 });
+      }
+      clearHistory(variantId);
+      return new Response(null, { status: 204 });
     }
 
     return new Response("not found", { status: 404 });
