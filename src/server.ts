@@ -5,7 +5,7 @@ import type { ServerWebSocket } from "bun";
 import { listVariants, getVariant } from "./persona.js";
 import { Variant } from "./variant.js";
 import { ensureVariantHome } from "./workspace.js";
-import { loadHistory, appendMessage, appendSessionBreak, formatTranscript } from "./history.js";
+import { loadHistory, appendMessage, formatTranscript } from "./history.js";
 
 /**
  * Web chat UI for the variants.
@@ -111,12 +111,9 @@ const server = Bun.serve<WSData>({
         }),
       );
 
-      // Restore prior history to the browser, with a session-break marker at the end
-      // so reconnects show a visual divider rather than blending with the previous session.
       const history = loadHistory(identity.id);
       if (history.length > 0) {
-        const breakMsg = appendSessionBreak(identity.id);
-        ws.send(JSON.stringify({ kind: "history", messages: [...history, breakMsg] }));
+        ws.send(JSON.stringify({ kind: "history", messages: history }));
       }
 
       // Inject the prior conversation transcript into the model's system prompt so it
