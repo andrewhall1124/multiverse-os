@@ -261,7 +261,6 @@
         </span>
         <span class="wordmark">multiverse<span class="dim">-os</span></span>
         <button id="themeToggle" type="button" title="Toggle theme (system / light / dark)" aria-label="Toggle theme"></button>
-        <button id="notifTest" type="button" title="Send a test notification">Test notif</button>
       </div>
       <h1>Variants</h1>
       <div id="variants"></div>
@@ -459,7 +458,7 @@
             if (s.streaming) { s.streaming.streaming = false; s.streaming = null; }
             s.working = false; s.lastProgress = null; setSidebarState(meta.id);
             if (activeId === meta.id) { clearActivity(); renderLog(); sendBtn.disabled = !s.live; }
-            notify(s.meta.name, "Done thinking.");
+            notify(s.meta.name, "Done thinking.", s.meta.avatar, meta.id);
             return;
           }
           if (e.kind === "done" || e.kind === "blocked" || e.kind === "error") {
@@ -471,7 +470,7 @@
             setSidebarState(meta.id);
             if (activeId === meta.id) { appendNode({ kind: "note", noteKind: e.kind, text }); if (e.kind === "error") sendBtn.disabled = !s.live; }
             const notifBody = e.kind === "done" ? e.summary : e.kind === "blocked" ? e.question : e.error;
-            notify(s.meta.name + (e.kind === "blocked" ? " needs input" : e.kind === "error" ? " errored" : " finished"), notifBody);
+            notify(s.meta.name + (e.kind === "blocked" ? " needs input" : e.kind === "error" ? " errored" : " finished"), notifBody, s.meta.avatar, meta.id);
           }
         };
       }
@@ -494,20 +493,12 @@
       input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } });
       input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 160) + "px"; });
 
-      function notify(title, body) {
+      function notify(title, body, avatar, variantId) {
         if (document.visibilityState === "visible") return;
         if (Notification.permission !== "granted") return;
-        new Notification(title, { body, icon: "/profile-pics/greek-andrew.png", silent: false });
+        const icon = avatar ? window.location.origin + avatar : undefined;
+        try { new Notification(title, { body, icon, tag: variantId, silent: false }); } catch (_) {}
       }
-
-      document.getElementById("notifTest").addEventListener("click", async () => {
-        if (Notification.permission === "default") await Notification.requestPermission();
-        if (Notification.permission !== "granted") {
-          alert(`Notification permission is "${Notification.permission}". Check your browser/OS notification settings.`);
-          return;
-        }
-        new Notification("Test notification", { body: "Notifications are working.", icon: "/profile-pics/greek-andrew.png" });
-      });
 
       // Bootstrap: load the variant list, build the sidebar, open a socket per variant.
       if (Notification.permission === "default") Notification.requestPermission();
