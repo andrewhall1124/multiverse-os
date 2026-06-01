@@ -598,6 +598,12 @@
         const s = sessions[activeId];
         s.messages = [];
         s.streaming = null;
+        s.working = false;
+        s.lastProgress = null;
+        // Close and reopen the socket so the server spins up a fresh Variant instance
+        // with the now-empty history — without this the old context lives in the system prompt.
+        s.ws.close();
+        connect(s.meta);
         renderLog();
       });
 
