@@ -1,33 +1,124 @@
-# Greek Sculpture Andrew — Coding Habits
+# Andrew — Coding Habits
 
 > This file defines how Andrew *codes*. These travel with Andrew into any repo he works
 > in. If the target repo has its own CLAUDE.md, that is ALSO loaded and takes priority
 > for project-specific conventions — this file is Andrew's personal default style.
->
-> Everything below is a PLACEHOLDER. Fill in the TODOs with your real preferences.
 
 ## Languages & stack
 
-<!-- CUSTOMIZE -->
-- Primary language: TODO (e.g. TypeScript)
-- Runtime / framework: TODO (e.g. Node + React, or Python + FastAPI)
-- Package manager: TODO (e.g. pnpm / uv)
+- Primary language: **Python** (data/quant work), **TypeScript** (multiverse-os)
+- Python package manager: **uv**
+- Data library: **Polars** (not pandas unless a dependency forces it)
+- Orchestration: **Prefect** (flows + tasks pattern)
+- TypeScript runtime: **Bun**
 
 ## Tools I reach for first
 
-<!-- CUSTOMIZE -->
-- Formatter: TODO (e.g. Prettier / black)
-- Linter: TODO (e.g. ESLint / ruff)
-- Test runner: TODO (e.g. vitest / pytest)
-- Before I call anything "done", I run the formatter, linter, and tests.
+- Formatter + linter: **ruff** (Python), no separate black
+- Type checker: **pyright** / `bun run typecheck` (TypeScript)
+- Test runner: **pytest** (Python), **vitest** (TypeScript)
+- Before calling anything done: formatter, type checker, tests all pass.
 
-## Code style
+## Python code style
 
-<!-- CUSTOMIZE -->
-- Small, focused functions. Early returns over deep nesting.
-- Descriptive names over comments; comment the *why*, not the *what*.
-- Prefer the standard library / existing deps over adding new ones.
-- Match the surrounding file's conventions when in doubt.
+### Types
+
+Full type annotations on every function signature. No exceptions.
+
+```python
+def compute_momentum(prices: pl.DataFrame, window: int = 252) -> pl.Series:
+```
+
+- Use `|` union syntax (Python 3.10+), not `Optional[X]` or `Union[X, Y]`
+- Use `from typing import Protocol` for interfaces — prefer duck typing over ABC inheritance
+- Custom type aliases via `TypeAlias` to name domain concepts:
+  ```python
+  from typing import TypeAlias
+  Returns: TypeAlias = pl.DataFrame  # columns: date, ticker, return
+  ```
+- Date parameters: name them `date_` (trailing underscore) to avoid shadowing `datetime.date`
+- Always `import datetime as dt`
+
+### Naming
+
+- Variables + functions: `snake_case`
+- Classes: `PascalCase`
+- Module-level constants: `UPPER_CASE`
+- Private methods: `_leading_underscore`
+
+### Imports
+
+Standard library → third-party → local. One blank line between groups.
+
+```python
+import datetime as dt
+import os
+
+import polars as pl
+import numpy as np
+from prefect import flow, task
+
+from pipelines.clients.alpaca import get_bars
+from pipelines.utils import get_calendar
+```
+
+### Classes vs functions
+
+- **Domain concepts** (strategies, optimizers, cost models, risk models) → classes with constructor injection:
+  ```python
+  class OptimizationStrategy(Strategy):
+      def __init__(self, optimizer: MVO, alpha_provider: AlphaProvider | None = None): ...
+  ```
+- **Orchestration** (Prefect flows/tasks, ETL steps) → plain functions with decorators
+
+### Config and settings
+
+- Module-level `UPPER_CASE` constants for non-secret config
+- `os.getenv()` + `load_dotenv()` for secrets — never hardcode
+- No Pydantic settings classes, no dataclass configs
+
+### Error handling
+
+Raise only for:
+1. Missing required environment variables or config
+2. Critical data integrity violations (`raise ValueError(...)`)
+
+Otherwise prefer null-filling, `drop_nulls()`, or returning empty DataFrames. No try/except around API calls.
+
+### Docstrings
+
+Don't write them. Type hints are the documentation.
+
+### Polars style
+
+Method chains with outer parentheses, not multiple reassignments:
+
+```python
+result = (
+    df
+    .filter(pl.col("date") >= start_date)
+    .join(other, on=["date", "ticker"], how="left")
+    .with_columns(
+        pl.col("return").rolling_mean(window).alias("momentum")
+    )
+    .drop_nulls()
+)
+```
+
+## Documentation
+
+Before using any API you're uncertain about, fetch the current docs. Do not rely on
+training data for exact method signatures — APIs change.
+
+| Package | Docs |
+|---|---|
+| Polars | https://docs.pola.rs/api/python/stable/reference/ |
+| alpaca-py | https://alpaca.markets/sdks/python/ |
+| Alpaca REST API | https://docs.alpaca.markets/reference/ |
+| Anthropic SDK | https://docs.anthropic.com/en/api/getting-started |
+| Prefect | https://docs.prefect.io/v3/get-started/index |
+| psycopg (v3) | https://www.psycopg.org/psycopg3/docs/ |
+| cvxpy | https://www.cvxpy.org/api_reference/cvxpy.html |
 
 ## Git & branching workflow (IMPORTANT — this is how the team stays sane)
 
