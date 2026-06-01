@@ -5,6 +5,7 @@ import type { ServerWebSocket } from "bun";
 import { listVariants, getVariant } from "./persona.js";
 import { Variant } from "./variant.js";
 import { ensureVariantHome } from "./workspace.js";
+import { loadHistory, appendMessage, formatTranscript } from "./history.js";
 
 /**
  * Web chat UI for the variants.
@@ -57,6 +58,8 @@ const PIC_TYPES: Record<string, string> = {
 // Per-connection state: each socket owns one Variant.
 type WSData = { id: string };
 const sessions = new Map<ServerWebSocket<WSData>, Variant>();
+// Accumulates the assistant's text for the current turn so we can persist it on turn_end.
+const assistantBuffers = new Map<ServerWebSocket<WSData>, string>();
 
 const server = Bun.serve<WSData>({
   port,
@@ -110,14 +113,60 @@ const server = Bun.serve<WSData>({
         }),
       );
 
-      const variant = new Variant(identity, { workdir, model });
+      // Restore prior history to the browser.
+      const history = loadHistory(identity.id);
+      if (history.length > 0) {
+        ws.send(JSON.stringify({ kind: "history", messages: history }));
+      }
+
+      // Inject the prior conversation transcript into the model's system prompt so it
+      // has memory across reconnects. Capped at the last 100 chat turns.
+      const transcript = formatTranscript(history);
+      const contextualIdentity =
+        transcript.length > 0
+          ? {
+              ...identity,
+              systemPromptAppend:
+                identity.systemPromptAppend +
+                "\n\n=== PRIOR CONVERSATION HISTORY ===\n" +
+                "The following is the conversation history from a previous session. " +
+                "Use it to maintain continuity:\n\n" +
+                transcript +
+                "\n\n[End of prior history. Continue the conversation naturally.]",
+            }
+          : identity;
+
+      const variant = new Variant(contextualIdentity, { workdir, model });
       sessions.set(ws, variant);
+      assistantBuffers.set(ws, "");
 
       // Forward every variant event to the browser. run() resolves only on stop().
       variant
         .run((e) => {
           try {
             ws.send(JSON.stringify(e));
+            if (e.kind === "text") {
+              assistantBuffers.set(ws, (assistantBuffers.get(ws) ?? "") + e.text);
+            } else if (e.kind === "turn_end") {
+              const buf = assistantBuffers.get(ws) ?? "";
+              if (buf.trim().length > 0) {
+                appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
+              }
+              assistantBuffers.set(ws, "");
+            } else if (e.kind === "done" || e.kind === "blocked" || e.kind === "error") {
+              const text =
+                e.kind === "done"
+                  ? "✅ " + e.summary
+                  : e.kind === "blocked"
+                    ? "⚠️ blocked: " + e.question
+                    : "❌ " + e.error;
+              appendMessage(identity.id, {
+                role: "note",
+                noteKind: e.kind,
+                text,
+                ts: Date.now(),
+              });
+            }
           } catch {
             // socket already closed mid-stream; nothing to do.
           }
@@ -130,11 +179,15 @@ const server = Bun.serve<WSData>({
     },
     message(ws, raw) {
       const text = (typeof raw === "string" ? raw : raw.toString()).trim();
-      if (text) sessions.get(ws)?.send(text);
+      if (text) {
+        appendMessage(ws.data.id, { role: "user", text, ts: Date.now() });
+        sessions.get(ws)?.send(text);
+      }
     },
     close(ws) {
       sessions.get(ws)?.stop();
       sessions.delete(ws);
+      assistantBuffers.delete(ws);
     },
   },
 });
