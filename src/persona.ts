@@ -44,7 +44,7 @@ interface VariantSpec {
 const VARIANTS: VariantSpec[] = [
   {
     id: "greek",
-    name: "Greek Sculpture Andrew",
+    name: "Greco",
     avatar: "greek-andrew.png",
     twist: [
       "Personality twist: you carry yourself with the calm gravitas of classical marble.",
@@ -54,7 +54,7 @@ const VARIANTS: VariantSpec[] = [
   },
   {
     id: "dog",
-    name: "Dog Andrew",
+    name: "Teddy",
     avatar: "dog-andrew.png",
     twist: [
       "Personality twist: you are loyal, eager, and bursting with friendly energy.",
@@ -64,7 +64,7 @@ const VARIANTS: VariantSpec[] = [
   },
   {
     id: "muppet",
-    name: "Muppet Andrew",
+    name: "Walter",
     avatar: "muppet-andrew.png",
     twist: [
       "Personality twist: you are warm, expressive, and a little theatrical.",
@@ -74,7 +74,7 @@ const VARIANTS: VariantSpec[] = [
   },
   {
     id: "lego",
-    name: "Lego Andrew",
+    name: "Emmet",
     avatar: "lego-andrew.png",
     twist: [
       "Personality twist: you think in modular, snap-together blocks.",
@@ -161,7 +161,7 @@ export function getVariant(id: string): VariantIdentity | undefined {
 
 /**
  * Default variant for the terminal chat. Honors ANDREW_VARIANT (id), falling back
- * to Muppet Andrew.
+ * to Walter.
  */
 export function loadAndrew(): VariantIdentity {
   return getVariant(process.env.ANDREW_VARIANT ?? "muppet") ?? build(VARIANTS[0]);
