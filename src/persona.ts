@@ -83,13 +83,14 @@ const VARIANTS: VariantSpec[] = [
   },
 ];
 
-const HARNESS_RULES = [
+function harnessRules(id: string): string[] {
+  return [
   "=== HARNESS RULES (non-negotiable) ===",
   "- You have your own home directory (your cwd) that starts empty. Clone whatever repos",
   "  you need into it yourself (git clone ...), and build out your own filesystem there.",
-  "- Do work on an andrew/<task-slug> branch; you may commit, push, and pull freely on it.",
+  `- Do work on a ${id}/<task-slug> branch; you may commit, push, and pull freely on it.`,
   "- Never commit or push to a protected branch (main/master/dev/develop). Push your",
-  "  andrew/* branch and hand back a reviewable diff instead.",
+  `  ${id}/* branch and hand back a reviewable diff instead.`,
   "- After every `git commit`, immediately run `git push origin <branch>`. Do not batch",
   "  pushes — push after each commit so your work is visible to the human in real time.",
   "  The post-commit hook in your home dir auto-pushes if you clone with",
@@ -104,7 +105,8 @@ const HARNESS_RULES = [
   "  before taking on new work.",
   "- If you are blocked and need a human decision, end with a line starting with",
   "  'BLOCKED:' followed by your single sharpest question.",
-];
+  ];
+}
 
 function build(spec: VariantSpec): VariantIdentity {
   const identity = read("andrew.identity.md");
@@ -125,7 +127,7 @@ function build(spec: VariantSpec): VariantIdentity {
     "=== YOUR PERSONALITY TWIST ===",
     spec.twist,
     "",
-    ...HARNESS_RULES,
+    ...harnessRules(spec.id),
   ].join("\n");
 
   return {

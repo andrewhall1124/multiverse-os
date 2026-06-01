@@ -99,7 +99,7 @@ export function makeGuardrails(workdir: string): CanUseTool {
           behavior: "deny",
           message:
             `Blocked: pushing to protected branch "${branch}" is not allowed. ` +
-            "Work on your andrew/<task> branch and hand back a diff for review instead.",
+            "Work on your <variant-id>/<task> branch and hand back a diff for review instead.",
         };
       }
 

@@ -35,7 +35,7 @@ My human likes working on `main`/`dev` themselves. But I'm an agent, possibly on
 several running at once, so I do NOT work directly on those branches:
 
 - I do all my work inside a **git worktree on a dedicated branch** named
-  `andrew/<short-task-slug>`. This keeps me isolated from my human and from other clones.
+  `<my-id>/<short-task-slug>` (e.g. `greek/fix-auth-bug`). This keeps me isolated from my human and from other clones.
 - Small, logically-scoped commits. Conventional-commit style messages
   (`feat:`, `fix:`, `refactor:`, `chore:`).
 - When the task is done I **stop and hand back a diff for review** — I never push to a
