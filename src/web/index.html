@@ -497,7 +497,7 @@
       function notify(title, body) {
         if (document.visibilityState === "visible") return;
         if (Notification.permission !== "granted") return;
-        new Notification(title, { body, icon: "/profile-pics/greek-andrew.png", silent: false });
+        new Notification(title, { body, silent: false });
       }
 
       document.getElementById("notifTest").addEventListener("click", async () => {
@@ -506,7 +506,7 @@
           alert(`Notification permission is "${Notification.permission}". Check your browser/OS notification settings.`);
           return;
         }
-        new Notification("Test notification", { body: "Notifications are working.", icon: "/profile-pics/greek-andrew.png" });
+        new Notification("Test notification", { body: "Notifications are working." });
       });
 
       // Bootstrap: load the variant list, build the sidebar, open a socket per variant.
