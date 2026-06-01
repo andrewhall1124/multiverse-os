@@ -77,6 +77,12 @@ const server = Bun.serve<WSData>({
       return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
     }
 
+    if (url.pathname === "/logo.svg") {
+      return new Response(Bun.file(join(__dirname, "web", "logo.svg")), {
+        headers: { "content-type": "image/svg+xml; charset=utf-8" },
+      });
+    }
+
     if (url.pathname === "/variants") {
       return Response.json(variantList);
     }

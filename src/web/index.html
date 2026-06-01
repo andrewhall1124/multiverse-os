@@ -3,15 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Andrew Variants</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/dist/styles/github-dark.min.css">
+    <title>multiverse-os</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link id="hljsDark" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/dist/styles/github-dark.min.css">
+    <link id="hljsLight" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/dist/styles/github.min.css" disabled>
     <style>
-      :root {
+      /* Dark is the default theme; data-theme="light" overrides below. */
+      :root, :root[data-theme="dark"] {
         --bg: #000000;
         --panel: #0a0a0a;
         --panel2: #141414;
         --border: #2e2e2e;
         --me: #ffffff;
+        --me-text: #000000;
         --andrew: #141414;
         --text: #f5f5f5;
         --muted: #9a9a9a;
@@ -19,6 +23,29 @@
         --warn: #bdbdbd;
         --err: #6e6e6e;
         --accent: #ffffff;
+        --on-accent: #000000;
+        --code-bg: #0d1117;
+        --code-inline-bg: #1a1a1a;
+        --logo: #ffffff;
+      }
+      :root[data-theme="light"] {
+        --bg: #ffffff;
+        --panel: #f6f6f7;
+        --panel2: #ececee;
+        --border: #d6d6da;
+        --me: #1a1a1a;
+        --me-text: #ffffff;
+        --andrew: #ffffff;
+        --text: #16181d;
+        --muted: #6a6e76;
+        --ok: #1a1a1a;
+        --warn: #6a6e76;
+        --err: #a0a0a8;
+        --accent: #1a1a1a;
+        --on-accent: #ffffff;
+        --code-bg: #f6f8fa;
+        --code-inline-bg: #eceef1;
+        --logo: #000000;
       }
       * { box-sizing: border-box; }
       html, body { height: 100%; margin: 0; }
@@ -92,13 +119,13 @@
       .row.me { justify-content: flex-end; }
       .row img.av { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
       .bubble { max-width: 680px; padding: 10px 14px; border-radius: 14px; word-wrap: break-word; }
-      .me .bubble { background: var(--me); color: #000; border-bottom-right-radius: 4px; white-space: pre-wrap; }
+      .me .bubble { background: var(--me); color: var(--me-text); border-bottom-right-radius: 4px; white-space: pre-wrap; }
       .andrew .bubble { background: var(--andrew); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
       .andrew .bubble p { margin: 0 0 8px; }
       .andrew .bubble p:last-child { margin-bottom: 0; }
-      .andrew .bubble pre { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 8px 0; }
+      .andrew .bubble pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 8px 0; }
       .andrew .bubble code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; }
-      .andrew .bubble :not(pre) > code { background: #1a1a1a; border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+      .andrew .bubble :not(pre) > code { background: var(--code-inline-bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
       .andrew .bubble ul, .andrew .bubble ol { margin: 4px 0 8px; padding-left: 20px; }
       .andrew .bubble li { margin: 2px 0; }
       .andrew .bubble h1, .andrew .bubble h2, .andrew .bubble h3 { margin: 8px 0 4px; font-weight: 600; }
@@ -138,12 +165,103 @@
         border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; max-height: 160px;
       }
       textarea:focus { outline: none; border-color: var(--accent); }
-      button { background: var(--accent); color: #000; border: none; border-radius: 10px; padding: 0 20px; font: inherit; font-weight: 600; cursor: pointer; }
+      button { background: var(--accent); color: var(--on-accent); border: none; border-radius: 10px; padding: 0 20px; font: inherit; font-weight: 600; cursor: pointer; }
       button:disabled { opacity: 0.5; cursor: default; }
+
+      /* ---- Brand header + theme toggle ---- */
+      #brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px 16px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      #brand .logo { width: 26px; height: 26px; color: var(--logo); flex-shrink: 0; }
+      #brand .logo svg { width: 100%; height: 100%; display: block; }
+      #brand .wordmark { font-weight: 700; letter-spacing: -0.01em; font-size: 15px; }
+      #brand .wordmark .dim { color: var(--muted); font-weight: 600; }
+      #themeToggle {
+        margin-left: auto;
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 5px 8px;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      #themeToggle:hover { color: var(--text); border-color: var(--muted); }
     </style>
+    <script>
+      // Theme: preference is "system" | "light" | "dark" (default "system"),
+      // persisted in localStorage. We resolve it to a concrete light/dark and set
+      // data-theme on <html> before first paint to avoid a flash. Runs in <head>.
+      (function () {
+        const KEY = "mv-theme";
+        const ORDER = ["system", "light", "dark"];
+        const mql = window.matchMedia("(prefers-color-scheme: dark)");
+
+        function pref() {
+          const p = localStorage.getItem(KEY);
+          return ORDER.includes(p) ? p : "system";
+        }
+        function resolve(p) {
+          return p === "system" ? (mql.matches ? "dark" : "light") : p;
+        }
+        function apply() {
+          const p = pref();
+          const theme = resolve(p);
+          document.documentElement.setAttribute("data-theme", theme);
+          const dark = document.getElementById("hljsDark");
+          const light = document.getElementById("hljsLight");
+          if (dark && light) { dark.disabled = theme !== "dark"; light.disabled = theme !== "light"; }
+          const btn = document.getElementById("themeToggle");
+          if (btn) btn.textContent = p[0].toUpperCase() + p.slice(1);
+        }
+        // Apply ASAP for the <html> attribute; re-apply once the DOM (button/links) exists.
+        apply();
+        document.addEventListener("DOMContentLoaded", () => {
+          apply();
+          const btn = document.getElementById("themeToggle");
+          if (btn) btn.addEventListener("click", () => {
+            const next = ORDER[(ORDER.indexOf(pref()) + 1) % ORDER.length];
+            localStorage.setItem(KEY, next);
+            apply();
+          });
+        });
+        // When following the system and it changes, reflect it live.
+        mql.addEventListener("change", () => { if (pref() === "system") apply(); });
+      })();
+    </script>
   </head>
   <body>
     <aside id="sidebar">
+      <div id="brand">
+        <span class="logo">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor" role="img" aria-label="multiverse-os logo">
+            <circle cx="256.00" cy="108.00" r="34" />
+            <circle cx="324.78" cy="124.95" r="34" />
+            <circle cx="377.80" cy="171.93" r="34" />
+            <circle cx="402.92" cy="238.16" r="34" />
+            <circle cx="394.38" cy="308.48" r="34" />
+            <circle cx="354.14" cy="366.78" r="34" />
+            <circle cx="291.42" cy="399.70" r="34" />
+            <circle cx="220.58" cy="399.70" r="34" />
+            <circle cx="157.86" cy="366.78" r="34" />
+            <circle cx="117.62" cy="308.48" r="34" />
+            <circle cx="109.08" cy="238.16" r="34" />
+            <circle cx="134.20" cy="171.93" r="34" />
+            <circle cx="187.22" cy="124.95" r="34" />
+          </svg>
+        </span>
+        <span class="wordmark">multiverse<span class="dim">-os</span></span>
+        <button id="themeToggle" type="button" title="Toggle theme (system / light / dark)" aria-label="Toggle theme"></button>
+      </div>
       <h1>Variants</h1>
       <div id="variants"></div>
     </aside>
