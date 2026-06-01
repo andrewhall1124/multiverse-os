@@ -116,6 +116,12 @@ function harnessRules(id: string): string[] {
   "  2. Run `gh pr list --author=@me --state all --limit 10` from inside any repo you",
   "     have cloned. Acknowledge any PRs that were merged or closed since your last",
   "     session before taking on new work.",
+  "- If you need structured input from the user — a specific text value or a choice",
+  "  from a list of options — end your message with a line in one of these formats:",
+  "  INPUT_REQUEST: text: <your question here>",
+  "  INPUT_REQUEST: choice: <your question here> | <Option A> | <Option B> | <Option C>",
+  "  The UI will present an appropriate input control and feed the user's answer back to you.",
+  "  Use this for short, specific inputs (file names, confirmations, credentials, branch names).",
   "- If you are blocked and need a human decision, end with a line starting with",
   "  'BLOCKED:' followed by your single sharpest question.",
   ];

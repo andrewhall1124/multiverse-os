@@ -193,6 +193,14 @@ const server = Bun.serve<WSData>({
                 appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
               }
               assistantBuffers.set(ws, "");
+            } else if (e.kind === "input_request") {
+              const optionsText = e.options?.length ? " | " + e.options.join(" | ") : "";
+              appendMessage(identity.id, {
+                role: "note",
+                noteKind: "input_request",
+                text: "❓ " + e.prompt + optionsText,
+                ts: Date.now(),
+              });
             } else if (e.kind === "done" || e.kind === "blocked" || e.kind === "error") {
               const text =
                 e.kind === "done"
@@ -219,10 +227,21 @@ const server = Bun.serve<WSData>({
     },
     message(ws, raw) {
       const text = (typeof raw === "string" ? raw : raw.toString()).trim();
-      if (text) {
-        appendMessage(ws.data.id, { role: "user", text, ts: Date.now() });
-        sessions.get(ws)?.send(text);
+      if (!text) return;
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed.kind === "input_response" && typeof parsed.response === "string") {
+          const response = parsed.response.trim();
+          if (!response) return;
+          appendMessage(ws.data.id, { role: "user", text: response, ts: Date.now() });
+          sessions.get(ws)?.send(response);
+          return;
+        }
+      } catch {
+        // not JSON — fall through to normal message handling
       }
+      appendMessage(ws.data.id, { role: "user", text, ts: Date.now() });
+      sessions.get(ws)?.send(text);
     },
     close(ws) {
       sessions.get(ws)?.stop();
