@@ -97,6 +97,7 @@
       .sdot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
       .sdot.live { background: var(--ok); }
       .sdot.working { background: var(--warn); animation: pulse 1s infinite; }
+      .sdot.done { background: #22c55e; }
 
       /* ---- Chat pane ---- */
       #chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -562,9 +563,10 @@
         const node = document.querySelector(`.variant[data-id="${id}"]`);
         if (!node || !s) return;
         const dot = node.querySelector(".sdot");
-        dot.className = "sdot " + (s.working ? "working" : s.live ? "live" : "");
+        const label = s.working ? "working" : (s.hasDone ? "done" : (s.live ? "live" : ""));
+        dot.className = "sdot " + label;
         node.querySelector(".state").lastChild.textContent =
-          s.working ? "working…" : s.live ? "online" : "offline";
+          s.working ? "working…" : s.hasDone ? "done" : s.live ? "online" : "offline";
       }
 
       function renderLog() {
@@ -612,6 +614,8 @@
         activeId = id;
         document.querySelectorAll(".variant").forEach((n) => n.classList.toggle("active", n.dataset.id === id));
         const s = sessions[id];
+        s.hasDone = false;
+        setSidebarState(id);
         $("hAvatar").src = s.meta.avatar;
         $("hName").textContent = s.meta.name;
         $("hWorkdir").textContent = s.meta.workdir ? "working in: " + s.meta.workdir : "";
@@ -685,7 +689,9 @@
           }
           if (e.kind === "turn_end") {
             if (s.streaming) { s.streaming.streaming = false; s.streaming = null; }
-            s.working = false; s.lastProgress = null; setSidebarState(meta.id);
+            s.working = false; s.lastProgress = null;
+            if (activeId !== meta.id) s.hasDone = true;
+            setSidebarState(meta.id);
             if (activeId === meta.id) { clearActivity(); renderLog(); sendBtn.disabled = !s.live; }
             notify(s.meta.name, "Done thinking.", s.meta.avatar, meta.id);
             return;
@@ -700,6 +706,7 @@
                        : "❌ " + e.error;
             s.messages.push({ kind: "note", noteKind: e.kind, text });
             if (e.kind === "error") s.working = false;
+            if (activeId !== meta.id) s.hasDone = true;
             setSidebarState(meta.id);
             if (activeId === meta.id) { appendNode({ kind: "note", noteKind: e.kind, text }); if (e.kind === "error") sendBtn.disabled = !s.live; }
             const notifBody = e.kind === "done" ? e.summary : e.kind === "blocked" ? e.question : e.error;
@@ -893,7 +900,7 @@
 
       fetch("/variants").then((r) => r.json()).then((list) => {
         list.forEach((v, i) => {
-          sessions[v.id] = { meta: v, ws: null, working: false, lastProgress: null, live: false, streaming: null, messages: [], pendingInput: null };
+          sessions[v.id] = { meta: v, ws: null, working: false, hasDone: false, lastProgress: null, live: false, streaming: null, messages: [], pendingInput: null };
 
           const node = document.createElement("div");
           node.className = "variant";
