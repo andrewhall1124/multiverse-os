@@ -33,6 +33,12 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..");
 const picsDir = join(repoRoot, "profile-pics");
+const webDir = join(__dirname, "web");
+
+// Transpiles the client's TS modules to JS on the fly — no bundler, no dist/. The browser
+// loads native ES modules; import specifiers stay `.js` (matching the repo's NodeNext style)
+// and map to their `.ts` source here.
+const tsTranspiler = new Bun.Transpiler({ loader: "ts" });
 
 const multiverseRoot = process.env.MULTIVERSE_ROOT ?? "/Users/andrew/MultiverseOS";
 const model = process.env.ANDREW_MODEL ?? "sonnet";
@@ -244,6 +250,26 @@ const server = Bun.serve<WSData>({
       return new Response(Bun.file(join(__dirname, "web", "logo.svg")), {
         headers: { "content-type": "image/svg+xml; charset=utf-8" },
       });
+    }
+
+    // Client modules and styles: /web/<path>.js transpiles src/web/<path>.ts; .css served as-is.
+    if (url.pathname.startsWith("/web/") && !url.pathname.includes("..")) {
+      const rel = url.pathname.slice("/web/".length);
+      if (rel.endsWith(".css")) {
+        const full = join(webDir, rel);
+        if (existsSync(full)) {
+          return new Response(Bun.file(full), { headers: { "content-type": "text/css; charset=utf-8" } });
+        }
+        return new Response("not found", { status: 404 });
+      }
+      if (rel.endsWith(".js")) {
+        const tsPath = join(webDir, rel.replace(/\.js$/, ".ts"));
+        if (existsSync(tsPath)) {
+          const js = tsTranspiler.transformSync(readFileSync(tsPath, "utf8"));
+          return new Response(js, { headers: { "content-type": "application/javascript; charset=utf-8" } });
+        }
+        return new Response("not found", { status: 404 });
+      }
     }
 
     if (url.pathname === "/variants") {

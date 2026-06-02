@@ -1,0 +1,112 @@
+/* Structural shell: sidebar, brand, chat pane, log, activity bar, composer frame. */
+
+/* ---- Sidebar: list of variants ---- */
+#sidebar {
+  width: 264px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+#sidebar h1 {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+  padding: 18px 18px 10px;
+}
+
+/* ---- Brand header + theme toggle ---- */
+#brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid var(--border);
+}
+#brand .logo { width: 26px; height: 26px; color: var(--logo); flex-shrink: 0; }
+#brand .logo svg { width: 100%; height: 100%; display: block; }
+#brand .wordmark { font-weight: 700; letter-spacing: -0.01em; font-size: 15px; }
+#brand .wordmark .dim { color: var(--muted); font-weight: 600; }
+#themeToggle {
+  margin-left: auto;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#themeToggle:hover { color: var(--text); border-color: var(--muted); }
+
+/* ---- Sidebar footer + settings button ---- */
+#sidebarFooter {
+  margin-top: auto;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+#settingsBtn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+#settingsBtn:hover { color: var(--text); border-color: var(--border); }
+
+/* ---- Chat pane ---- */
+#chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#chatHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+#chatHeader img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+#chatHeader .title { font-weight: 600; }
+#chatHeader .sub { color: var(--muted); font-size: 13px; }
+
+#log { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+#empty { margin: auto; color: var(--muted); text-align: center; }
+
+/* ---- Activity bar: live tool progress ---- */
+#activity {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 20px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#activity.visible { display: flex; }
+#activity .spinner {
+  width: 8px; height: 8px; border-radius: 50%;
+  border: 1.5px solid var(--muted); border-top-color: var(--text);
+  animation: spin 0.7s linear infinite; flex-shrink: 0;
+}
+
+form { display: flex; flex-direction: column; background: var(--panel); border-top: 1px solid var(--border); }
+.compose { display: flex; gap: 10px; padding: 14px 20px; align-items: flex-end; }

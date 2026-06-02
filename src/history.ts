@@ -1,16 +1,12 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import type { PersistedMessage } from "./protocol.js";
+
+export type { PersistedMessage } from "./protocol.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(__dirname, "..", "data");
-
-export type PersistedMessage =
-  | { role: "user"; text: string; ts: number }
-  | { role: "assistant"; text: string; ts: number }
-  // One record per tool invocation: the call (tool + summary) and its truncated result.
-  | { role: "tool"; tool: string; summary: string; output: string; isError: boolean; ts: number }
-  | { role: "note"; noteKind: "done" | "blocked" | "error" | "input_request"; text: string; ts: number };
 
 // History is stored as JSON Lines (one message object per line) so appends are O(1):
 // we never re-read or rewrite the whole file just to add a message. Older files were a

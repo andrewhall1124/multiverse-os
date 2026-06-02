@@ -1,6 +1,9 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { VariantIdentity } from "./persona.js";
+import type { VariantEvent } from "./protocol.js";
 import { makeGuardrails } from "./guardrails.js";
+
+export type { VariantEvent } from "./protocol.js";
 
 /**
  * A single variant running on top of the Claude Agent SDK harness.
@@ -18,19 +21,6 @@ import { makeGuardrails } from "./guardrails.js";
  *    notifications / Slack / a websocket to a real chat app.
  *  - Guardrails: canUseTool blocks protected-branch pushes and destructive commands.
  */
-
-export type VariantEvent =
-  | { kind: "text"; text: string } // streamed assistant prose
-  | { kind: "turn_end" } // model finished responding to the current message
-  | { kind: "interrupted" } // user cancelled the current turn
-  | { kind: "done"; summary: string } // task complete, ready for review
-  | { kind: "blocked"; question: string } // needs a human decision
-  | { kind: "input_request"; prompt: string; expected: "text" | "choice"; options?: string[] } // structured user input
-  | { kind: "progress"; tool: string; summary: string } // tool use in flight
-  | { kind: "tool_use"; tool: string; summary: string; toolUseId: string } // a tool call, for the persisted record
-  | { kind: "tool_result"; toolUseId: string; output: string; isError: boolean } // its (truncated) result
-  | { kind: "session"; sessionId: string } // SDK session id, captured so we can resume it later
-  | { kind: "error"; error: string };
 
 // Tool outputs (file dumps, command logs) can be huge; cap what we emit/persist so the
 // history file and the resume-fallback transcript stay bounded.

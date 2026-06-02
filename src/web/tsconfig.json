@@ -1,0 +1,10 @@
+{
+  // Browser modules: same strictness as the server, but a DOM environment (not Node).
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "noEmit": true
+  },
+  "include": ["**/*.ts", "../protocol.ts"]
+}

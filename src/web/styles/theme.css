@@ -1,0 +1,52 @@
+/* Design tokens, base resets, and shared keyframes. Loaded first so var()s resolve. */
+
+/* Dark is the default theme; data-theme="light" overrides below. */
+:root, :root[data-theme="dark"] {
+  --bg: #000000;
+  --panel: #0a0a0a;
+  --panel2: #141414;
+  --border: #2e2e2e;
+  --me: #ffffff;
+  --me-text: #000000;
+  --andrew: #141414;
+  --text: #f5f5f5;
+  --muted: #9a9a9a;
+  --ok: #ffffff;
+  --warn: #bdbdbd;
+  --err: #6e6e6e;
+  --accent: #ffffff;
+  --on-accent: #000000;
+  --code-bg: #0d1117;
+  --code-inline-bg: #1a1a1a;
+  --logo: #ffffff;
+}
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --panel: #f6f6f7;
+  --panel2: #ececee;
+  --border: #d6d6da;
+  --me: #1a1a1a;
+  --me-text: #ffffff;
+  --andrew: #ffffff;
+  --text: #16181d;
+  --muted: #6a6e76;
+  --ok: #1a1a1a;
+  --warn: #6a6e76;
+  --err: #a0a0a8;
+  --accent: #1a1a1a;
+  --on-accent: #ffffff;
+  --code-bg: #f6f8fa;
+  --code-inline-bg: #eceef1;
+  --logo: #000000;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  display: flex;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+@keyframes pulse { 50% { opacity: 0.3; } }
+@keyframes spin { to { transform: rotate(360deg); } }

@@ -9,7 +9,7 @@
     "dev": "bun --watch src/chat.ts",
     "web": "bun run src/server.ts",
     "web:dev": "bun --watch src/server.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/web/tsconfig.json"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.0"
