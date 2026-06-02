@@ -199,6 +199,17 @@
       .note.blocked { color: var(--warn); border-color: var(--warn); }
       .note.error { color: var(--err); border-color: var(--err); }
       .note.input_request { color: var(--accent); border-color: var(--accent); }
+      /* ---- Tool activity, persisted inline in the log ---- */
+      .toolchip { align-self: flex-start; max-width: 680px; width: 100%; font-size: 12px; color: var(--muted); }
+      .toolchip .thead, .toolchip summary { display: flex; gap: 6px; align-items: baseline; cursor: default; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--andrew); list-style: none; }
+      .toolchip details > summary { cursor: pointer; }
+      .toolchip details[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+      .toolchip summary::-webkit-details-marker { display: none; }
+      .toolchip .tname { font-weight: 600; color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+      .toolchip .tsum { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .toolchip pre { margin: 0; padding: 8px 10px; background: var(--code-bg); border: 1px solid var(--border); border-top: 0; border-radius: 0 0 8px 8px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+      .toolchip.err .tname { color: var(--err); }
+      .toolchip.err .thead, .toolchip.err summary { border-color: var(--err); }
 
       /* ---- Input request card ---- */
       .input-card {
@@ -725,7 +736,51 @@
         logEl.scrollTop = logEl.scrollHeight;
       }
 
+      // A persisted tool invocation: name + summary, with its output behind a disclosure.
+      function buildToolChip(m) {
+        const el = document.createElement("div");
+        el.className = "toolchip" + (m.isError ? " err" : "");
+        if (m.toolUseId) el.dataset.toolId = m.toolUseId;
+
+        const head = document.createElement("div");
+        head.className = "thead";
+        const name = document.createElement("span");
+        name.className = "tname";
+        name.textContent = m.tool;
+        const sum = document.createElement("span");
+        sum.className = "tsum";
+        sum.textContent = m.summary || "";
+        head.appendChild(name);
+        head.appendChild(sum);
+
+        const hasOutput = m.output != null && m.output !== "";
+        if (hasOutput) {
+          const det = document.createElement("details");
+          const summary = document.createElement("summary");
+          summary.appendChild(head);
+          const pre = document.createElement("pre");
+          pre.textContent = m.output;
+          det.appendChild(summary);
+          det.appendChild(pre);
+          el.appendChild(det);
+        } else {
+          if (m.running) {
+            const dot = document.createElement("span");
+            dot.className = "tdot";
+            dot.textContent = "…";
+            head.appendChild(dot);
+          }
+          el.appendChild(head);
+        }
+        return el;
+      }
+
       function appendNode(m) {
+        if (m.kind === "tool") {
+          logEl.appendChild(buildToolChip(m));
+          logEl.scrollTop = logEl.scrollHeight;
+          return;
+        }
         if (m.kind === "note") {
           const n = document.createElement("div");
           n.className = "note " + m.noteKind;
@@ -797,6 +852,8 @@
             s.messages = e.messages.map((m) => {
               if (m.role === "user") return { who: "me", text: m.text };
               if (m.role === "assistant") return { who: "andrew", text: m.text, avatar: s.meta.avatar };
+              if (m.role === "tool")
+                return { kind: "tool", tool: m.tool, summary: m.summary, output: m.output, isError: m.isError };
               return { kind: "note", noteKind: m.noteKind, text: m.text };
             });
             if (activeId === meta.id) renderLog();
@@ -829,6 +886,27 @@
             }
             s.lastProgress = { tool: e.tool, summary: e.summary };
             if (activeId === meta.id) updateActivity(s.lastProgress);
+            return;
+          }
+          if (e.kind === "tool_use") {
+            // Seal any open streaming bubble, then add a running tool chip.
+            if (s.streaming) { s.streaming.streaming = false; s.streaming = null; }
+            const chip = { kind: "tool", toolUseId: e.toolUseId, tool: e.tool, summary: e.summary, output: null, isError: false, running: true };
+            s.messages.push(chip);
+            if (activeId === meta.id) appendNode(chip);
+            return;
+          }
+          if (e.kind === "tool_result") {
+            const chip = [...s.messages].reverse().find((m) => m.kind === "tool" && m.toolUseId === e.toolUseId);
+            if (chip) {
+              chip.output = e.output;
+              chip.isError = e.isError;
+              chip.running = false;
+              if (activeId === meta.id) {
+                const node = logEl.querySelector(`[data-tool-id="${CSS.escape(e.toolUseId)}"]`);
+                if (node) node.replaceWith(buildToolChip(chip));
+              }
+            }
             return;
           }
           if (e.kind === "turn_end" || e.kind === "interrupted") {

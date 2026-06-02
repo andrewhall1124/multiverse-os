@@ -180,5 +180,9 @@ export function getVariant(id: string): VariantIdentity | undefined {
  * to Walter.
  */
 export function loadAndrew(): VariantIdentity {
-  return getVariant(process.env.ANDREW_VARIANT ?? "muppet") ?? build(VARIANTS[0]);
+  return (
+    getVariant(process.env.ANDREW_VARIANT ?? "muppet") ??
+    getVariant("muppet") ??
+    build(VARIANTS[0])
+  );
 }

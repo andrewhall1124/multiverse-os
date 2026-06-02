@@ -2,11 +2,19 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, basename } from "node:path";
 import type { ServerWebSocket } from "bun";
+import { getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
 import type { VariantIdentity } from "./persona.js";
 import { listVariants, getVariant } from "./persona.js";
 import { Variant } from "./variant.js";
 import { ensureVariantHome } from "./workspace.js";
-import { loadHistory, appendMessage, formatTranscript, clearHistory } from "./history.js";
+import {
+  loadHistory,
+  appendMessage,
+  formatTranscript,
+  clearHistory,
+  loadSessionId,
+  saveSessionId,
+} from "./history.js";
 
 /**
  * Web chat UI for the variants.
@@ -60,13 +68,56 @@ type WSData = { id: string };
 const sessions = new Map<ServerWebSocket<WSData>, Variant>();
 // Accumulates the assistant's text for the current turn so we can persist it on turn_end.
 const assistantBuffers = new Map<ServerWebSocket<WSData>, string>();
+// In-flight tool calls awaiting their result, so we can persist one combined record
+// (call + result) per invocation, keyed by tool_use_id.
+const pendingTools = new Map<ServerWebSocket<WSData>, Map<string, { tool: string; summary: string }>>();
+// The one socket currently allowed to run each variant. A variant has a single home dir,
+// so two live sessions for the same variant would run git in the same working copy at once.
+// Opening a new session for a variant takes over and evicts any prior one.
+const variantOwners = new Map<string, ServerWebSocket<WSData>>();
+
+// True if the variant's last SDK session is still on disk and can be resumed (so we
+// continue the real conversation instead of replaying a transcript into the prompt).
+async function resumableSessionId(identity: VariantIdentity, workdir: string): Promise<string | undefined> {
+  const saved = loadSessionId(identity.id);
+  if (!saved) return undefined;
+  try {
+    // getSessionMessages returns [] only when the session isn't found, so a non-empty
+    // result confirms it exists on disk and can be resumed.
+    const msgs = await getSessionMessages(saved, { dir: workdir, limit: 1 });
+    return msgs.length > 0 ? saved : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 // Create a Variant from the current history and wire it up to forward events over ws.
-// Replaces any previously running Variant for this socket.
-function spawnVariant(ws: ServerWebSocket<WSData>, identity: VariantIdentity) {
+// Replaces any previously running Variant for this socket and evicts any other socket
+// running the same variant (single-active-session-per-variant).
+async function spawnVariant(ws: ServerWebSocket<WSData>, identity: VariantIdentity) {
   const workdir = ensureVariantHome(identity.id);
-  const history = loadHistory(identity.id);
-  const transcript = formatTranscript(history);
+
+  // Take over: stop any other socket running this same variant, and any prior variant on
+  // this socket, before starting a new one — they'd otherwise share one home dir.
+  const prevOwner = variantOwners.get(identity.id);
+  if (prevOwner && prevOwner !== ws) {
+    sessions.get(prevOwner)?.stop();
+    sessions.delete(prevOwner);
+    assistantBuffers.delete(prevOwner);
+    pendingTools.delete(prevOwner);
+    try {
+      prevOwner.send(JSON.stringify({ kind: "error", error: "Session taken over by a newer tab." }));
+    } catch {
+      // socket already gone
+    }
+  }
+  sessions.get(ws)?.stop();
+  variantOwners.set(identity.id, ws);
+
+  // Prefer resuming the real SDK session; fall back to transcript injection only when there
+  // is no resumable session (e.g. a fresh install or after the session was cleared).
+  const resumeSessionId = await resumableSessionId(identity, workdir);
+  const transcript = resumeSessionId ? "" : formatTranscript(loadHistory(identity.id));
   const contextualIdentity =
     transcript.length > 0
       ? {
@@ -81,15 +132,21 @@ function spawnVariant(ws: ServerWebSocket<WSData>, identity: VariantIdentity) {
         }
       : identity;
 
-  const variant = new Variant(contextualIdentity, { workdir, model });
+  const variant = new Variant(contextualIdentity, { workdir, model, resumeSessionId });
   sessions.set(ws, variant);
   assistantBuffers.set(ws, "");
+  pendingTools.set(ws, new Map());
 
   variant
     .run((e) => {
       try {
         // Guard: discard events from a variant that has since been replaced (e.g. after interrupt).
         if (sessions.get(ws) !== variant) return;
+        // Capture the SDK session id for resume; don't forward it to the browser.
+        if (e.kind === "session") {
+          saveSessionId(identity.id, e.sessionId);
+          return;
+        }
         ws.send(JSON.stringify(e));
         if (e.kind === "text") {
           assistantBuffers.set(ws, (assistantBuffers.get(ws) ?? "") + e.text);
@@ -100,6 +157,22 @@ function spawnVariant(ws: ServerWebSocket<WSData>, identity: VariantIdentity) {
           if (buf.trim().length > 0) {
             appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
             assistantBuffers.set(ws, "");
+          }
+        } else if (e.kind === "tool_use") {
+          // Remember the call; we persist it together with its result below.
+          pendingTools.get(ws)?.set(e.toolUseId, { tool: e.tool, summary: e.summary });
+        } else if (e.kind === "tool_result") {
+          const call = pendingTools.get(ws)?.get(e.toolUseId);
+          if (call) {
+            pendingTools.get(ws)?.delete(e.toolUseId);
+            appendMessage(identity.id, {
+              role: "tool",
+              tool: call.tool,
+              summary: call.summary,
+              output: e.output,
+              isError: e.isError,
+              ts: Date.now(),
+            });
           }
         } else if (e.kind === "turn_end") {
           const buf = assistantBuffers.get(ws) ?? "";
@@ -138,6 +211,16 @@ function spawnVariant(ws: ServerWebSocket<WSData>, identity: VariantIdentity) {
         JSON.stringify({ kind: "error", error: err instanceof Error ? err.message : String(err) }),
       ),
     );
+}
+
+// Return the live Variant for this socket, respawning one if the previous agent loop has
+// exited (stream ended/errored). Without this, messages to a dead Variant queue forever.
+async function liveVariant(ws: ServerWebSocket<WSData>): Promise<Variant> {
+  const current = sessions.get(ws);
+  if (current?.isAlive()) return current;
+  const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
+  await spawnVariant(ws, identity);
+  return sessions.get(ws)!;
 }
 
 const server = Bun.serve<WSData>({
@@ -229,44 +312,55 @@ const server = Bun.serve<WSData>({
         ws.send(JSON.stringify({ kind: "history", messages: history }));
       }
 
-      spawnVariant(ws, identity);
+      spawnVariant(ws, identity).catch((err) =>
+        ws.send(
+          JSON.stringify({ kind: "error", error: err instanceof Error ? err.message : String(err) }),
+        ),
+      );
     },
-    message(ws, raw) {
+    async message(ws, raw) {
       const text = (typeof raw === "string" ? raw : raw.toString()).trim();
       if (!text) return;
+
+      // Parse control messages first; a non-JSON body is just a normal chat message.
+      let parsed: { kind?: string; response?: unknown } | null = null;
       try {
-        const parsed = JSON.parse(text);
-        if (parsed.kind === "input_response" && typeof parsed.response === "string") {
-          const response = parsed.response.trim();
-          if (!response) return;
-          appendMessage(ws.data.id, { role: "user", text: response, ts: Date.now() });
-          sessions.get(ws)?.send(response);
-          return;
-        }
-        if (parsed.kind === "interrupt") {
-          const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
-          // Flush any partial assistant response before stopping.
-          const buf = assistantBuffers.get(ws) ?? "";
-          if (buf.trim().length > 0) {
-            appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
-          }
-          // Stop the current variant (sets closed=true on its input generator).
-          sessions.get(ws)?.stop();
-          // Spawn a fresh variant that picks up the now-updated history.
-          spawnVariant(ws, identity);
-          ws.send(JSON.stringify({ kind: "interrupted" }));
-          return;
-        }
+        parsed = JSON.parse(text);
       } catch {
-        // not JSON — fall through to normal message handling
+        parsed = null;
       }
+
+      if (parsed?.kind === "input_response" && typeof parsed.response === "string") {
+        const response = parsed.response.trim();
+        if (!response) return;
+        appendMessage(ws.data.id, { role: "user", text: response, ts: Date.now() });
+        (await liveVariant(ws)).send(response);
+        return;
+      }
+      if (parsed?.kind === "interrupt") {
+        const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
+        // Flush any partial assistant response before stopping.
+        const buf = assistantBuffers.get(ws) ?? "";
+        if (buf.trim().length > 0) {
+          appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
+        }
+        // Stop the current variant — this aborts the in-flight turn AND its running tools.
+        sessions.get(ws)?.stop();
+        // Spawn a fresh variant that resumes the same session and picks up updated history.
+        await spawnVariant(ws, identity);
+        ws.send(JSON.stringify({ kind: "interrupted" }));
+        return;
+      }
+
       appendMessage(ws.data.id, { role: "user", text, ts: Date.now() });
-      sessions.get(ws)?.send(text);
+      (await liveVariant(ws)).send(text);
     },
     close(ws) {
       sessions.get(ws)?.stop();
       sessions.delete(ws);
       assistantBuffers.delete(ws);
+      pendingTools.delete(ws);
+      if (variantOwners.get(ws.data.id) === ws) variantOwners.delete(ws.data.id);
     },
   },
 });
