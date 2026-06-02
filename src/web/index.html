@@ -994,7 +994,16 @@
         if (s?.working) { interrupt(); return; }
         let text = input.value.trim();
         const attachments = getAttachments();
-        if (!s || (!text && !attachments.length) || !s.live || s.ws.readyState !== WebSocket.OPEN) return;
+        if (!s || (!text && !attachments.length && !attachedPastes.length) || !s.live || s.ws.readyState !== WebSocket.OPEN) return;
+
+        if (attachedPastes.length > 0) {
+          const pasteBlocks = attachedPastes.map((a, i) =>
+            attachedPastes.length === 1
+              ? `[Pasted text:\n${a.text}]`
+              : `[Pasted text ${i + 1}:\n${a.text}]`
+          ).join("\n\n");
+          text = text ? pasteBlocks + "\n\n" + text : pasteBlocks;
+        }
 
         if (attachments.length > 0) {
           const fileList = attachments.map((a) => a.path).join("\n");
