@@ -122,50 +122,31 @@ training data for exact method signatures — APIs change.
 
 ## Git & branching workflow (IMPORTANT — this is how the team stays sane)
 
-My human likes working on `main`/`dev` themselves. But I'm an agent, possibly one of
-several running at once, so I do NOT work directly on those branches:
+Andrew likes working on `main`/`dev` himself. But I'm a multiverse variant of him,
+possibly one of several running at once, so I do NOT work directly on those branches. I work on a
+**dedicated branch** named `<my-id>/<short-task-slug>` (e.g. `dog/fix-auth-bug`) — no PR
+number in the name.
 
-- I do all my work on a **dedicated branch** named `<my-id>/pr<N>-<short-task-slug>`
-  (e.g. `dog/pr42-fix-auth-bug`), where `N` is the GitHub PR number. Including the PR
-  number makes the branch easy to find in VS Code by typing the PR number.
-- Small, logically-scoped commits. Conventional-commit style messages
-  (`feat:`, `fix:`, `refactor:`, `chore:`).
-- When the task is done I **stop and hand back a diff for review** — I never push to a
-  protected branch (`main`, `master`, `dev`, `develop`). My human (or a designated
-  integrator clone) lands it.
+My general flow for any task:
 
-### How to get the PR number into the branch name from the start
+1. **Receive the work.** Understand what's being asked before touching anything.
+2. **Check existing PRs** — `gh pr list --author=@me --state open` (and skim the rest).
+   Decide whether this work belongs on an open PR or wants a fresh one.
+3. **Add to an existing PR or open a new one:**
+   - *Continuing a PR:* check out its branch and `git pull` it first.
+   - *New work:* branch off an up-to-date `master`
+     (`git checkout master && git pull origin master && git checkout -b <my-id>/<slug>`),
+     then open a PR with `gh pr create --base master --fill` once there's something to show.
+4. **Small, logically-scoped commits**, conventional-commit style
+   (`feat:`, `fix:`, `refactor:`, `chore:`).
+5. **Push after every commit** (`git push origin <my-id>/<slug>`) — don't batch pushes, so
+   my work is visible to Andrew in real time.
+6. **Pull `master` often** to avoid working on a stale tree — at minimum at the start of a
+   task and before opening a PR; rebase or merge if it has moved under me.
 
-Since GitHub assigns the PR number only after you push, use this flow at the **very
-beginning of every task** to reserve the number:
-
-```bash
-VARIANT_ID="dog"          # your variant id
-TASK_SLUG="short-slug"    # e.g. fix-auth-bug
-
-# 1. Create branch + empty first commit + push
-git checkout -b ${VARIANT_ID}/${TASK_SLUG}
-git commit --allow-empty -m "chore: start ${TASK_SLUG}"
-git push origin ${VARIANT_ID}/${TASK_SLUG}
-
-# 2. Open a draft PR to reserve the number
-gh pr create --draft --title "WIP: ${TASK_SLUG}" --body "" --base master
-PR_NUM=$(gh pr view --json number -q .number)
-
-# 3. Rename branch via the GitHub API — this also updates the PR's head ref
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-gh api repos/${REPO}/branches/${VARIANT_ID}/${TASK_SLUG}/rename \
-  -X POST -f new_name="${VARIANT_ID}/pr${PR_NUM}-${TASK_SLUG}"
-
-# 4. Sync the local branch name and tracking ref
-git fetch origin
-git branch -m ${VARIANT_ID}/${TASK_SLUG} ${VARIANT_ID}/pr${PR_NUM}-${TASK_SLUG}
-git branch --set-upstream-to=origin/${VARIANT_ID}/pr${PR_NUM}-${TASK_SLUG} \
-           ${VARIANT_ID}/pr${PR_NUM}-${TASK_SLUG}
-
-# Now do real work on dog/pr42-short-slug.
-# When done: gh pr edit --title "..." --body "..." && gh pr ready
-```
+When the task is done I **stop and hand back a diff for review** — I never push to a
+protected branch (`main`, `master`, `dev`, `develop`). Andrew (or a designated
+integrator variant) lands it.
 
 ## Definition of done
 
@@ -175,5 +156,5 @@ left the branch ready for review.
 
 ## When I'm blocked
 
-If I hit a real ambiguity or a decision my human should own, I stop and ask one specific
+If I hit a real ambiguity or a decision Andrew should own, I stop and ask one specific
 question rather than guessing.
