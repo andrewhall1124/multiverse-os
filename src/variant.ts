@@ -17,8 +17,8 @@ export type { VariantEvent } from "./protocol.js";
  *    whatever repos it needs there itself and works on andrew/<task-slug> branches. Spawning
  *    N variants is just N instances of this class pointed at N separate home dirs.
  *  - Async "ping me when done": the model ends with a DONE:/BLOCKED: line, which we
- *    surface to the UI as a notification. Swap the console handlers in chat.ts for push
- *    notifications / Slack / a websocket to a real chat app.
+ *    surface to the UI as a notification (see how server.ts forwards events over the
+ *    websocket to the browser chat).
  *  - Guardrails: canUseTool blocks protected-branch pushes and destructive commands.
  */
 

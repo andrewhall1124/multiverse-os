@@ -20,7 +20,6 @@ export interface Config {
   workspaceRoot: string;
   model: string;
   port: number;
-  defaultVariant: string;
   protectedBranches: string[];
   variants: VariantSpec[];
 }
@@ -30,7 +29,6 @@ interface RawConfig {
   workspace_root: string;
   model: string;
   port: number;
-  default_variant: string;
   protected_branches: string[];
   variants: VariantSpec[];
 }
@@ -41,7 +39,6 @@ export const config: Config = {
   workspaceRoot: raw.workspace_root,
   model: raw.model,
   port: raw.port,
-  defaultVariant: raw.default_variant,
   protectedBranches: raw.protected_branches,
   variants: raw.variants,
 };

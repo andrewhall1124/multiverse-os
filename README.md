@@ -36,11 +36,10 @@ Everything non-secret (variants, model, port, workspace root, protected branches
 
 ```bash
 bun run web              # → http://localhost:3000
-bun run chat             # terminal chat with the default variant
-bun run chat greek       # terminal chat with a specific variant
+bun run dev              # same, with auto-reload on file changes
 ```
 
-Both go through the single entry point, [src/main.ts](src/main.ts) (`bun run src/main.ts <web | chat [variant]>`). Add `:dev` to the web script for auto-reload (`bun run web:dev`), or use `bun run dev` for the terminal.
+Both go through the single entry point, [src/main.ts](src/main.ts), which boots the web server.
 
 The shared persona lives in [variant-config/andrew.identity.md](variant-config/andrew.identity.md) (how to talk) and [variant-config/andrew.coding.md](variant-config/andrew.coding.md) (how to code). Edit those to change every variant at once. Each variant's `variant-config/<id>.personality.md` changes just that one.
 
@@ -72,13 +71,12 @@ variant-config/
   andrew.coding.md     ← HOW EVERY ANDREW CODES  (edit to change all)
   <id>.personality.md  ← who each variant is        (one per variant)
 src/
-  main.ts              single entry point (web | chat)
+  main.ts              single entry point (boots the web server)
   config.ts            loads + types config.yaml
   persona.ts           assembles each variant's system prompt
   variant.ts           Variant class wrapping the SDK agent loop
   guardrails.ts        canUseTool: confinement + destructive-command blocking
   workspace.ts         ensures each variant's home directory exists
-  chat.ts              terminal chat surface
   server.ts            Bun web server (variant list, profile pics, websocket per thread)
   web/index.html       browser chat UI (sidebar of variants + chat pane)
 ```

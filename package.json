@@ -5,10 +5,8 @@
   "type": "module",
   "description": "A small team of coding variants built on the Claude Agent SDK.",
   "scripts": {
-    "chat": "bun run src/main.ts chat",
-    "dev": "bun --watch src/main.ts chat",
-    "web": "bun run src/main.ts web",
-    "web:dev": "bun --watch src/main.ts web",
+    "web": "bun run src/main.ts",
+    "dev": "bun --watch src/main.ts",
     "lint": "biome check src",
     "format": "biome format --write src",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/web/tsconfig.json"

@@ -107,15 +107,3 @@ export function getVariant(id: string): VariantIdentity | undefined {
   const spec = VARIANTS.find((v) => v.id === id);
   return spec ? build(spec) : undefined;
 }
-
-/**
- * Variant for the terminal chat. Uses the given id, falling back to the configured
- * default variant, then to the first variant defined.
- */
-export function loadAndrew(id?: string): VariantIdentity {
-  return (
-    getVariant(id ?? config.defaultVariant) ??
-    getVariant(config.defaultVariant) ??
-    build(VARIANTS[0])
-  );
-}

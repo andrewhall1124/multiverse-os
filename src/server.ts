@@ -50,6 +50,9 @@ const variantList = listVariants().map((v) => ({
   avatar: `/pics/${v.avatar}`,
 }));
 
+// Fallback when a request arrives without a valid variant id — just use the first one.
+const fallbackId = variantList[0].id;
+
 const PIC_TYPES: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",
@@ -225,7 +228,7 @@ async function spawnVariant(ws: ServerWebSocket<WSData>, identity: VariantIdenti
 async function liveVariant(ws: ServerWebSocket<WSData>): Promise<Variant> {
   const current = sessions.get(ws);
   if (current?.isAlive()) return current;
-  const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
+  const identity = getVariant(ws.data.id) ?? getVariant(fallbackId)!;
   await spawnVariant(ws, identity);
   return sessions.get(ws)!;
 }
@@ -239,7 +242,7 @@ export function runWeb(): void {
       const url = new URL(req.url);
 
       if (url.pathname === "/ws") {
-        const id = url.searchParams.get("variant") ?? "muppet";
+        const id = url.searchParams.get("variant") ?? fallbackId;
         // Hand the chosen variant id to the websocket handler via upgrade data.
         return server.upgrade(req, { data: { id } })
           ? undefined
@@ -285,7 +288,7 @@ export function runWeb(): void {
       }
 
       if (url.pathname === "/upload" && req.method === "POST") {
-        const variantId = url.searchParams.get("variant") ?? "muppet";
+        const variantId = url.searchParams.get("variant") ?? fallbackId;
         if (!getVariant(variantId)) return new Response("variant not found", { status: 404 });
         const workdir = ensureVariantHome(variantId);
         const uploadsDir = join(workdir, "uploads");
@@ -331,7 +334,7 @@ export function runWeb(): void {
     },
     websocket: {
       open(ws) {
-        const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
+        const identity = getVariant(ws.data.id) ?? getVariant(fallbackId)!;
         const workdir = ensureVariantHome(identity.id);
 
         ws.send(
@@ -378,7 +381,7 @@ export function runWeb(): void {
           return;
         }
         if (parsed?.kind === "interrupt") {
-          const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
+          const identity = getVariant(ws.data.id) ?? getVariant(fallbackId)!;
           // Flush any partial assistant response before stopping.
           const buf = assistantBuffers.get(ws) ?? "";
           if (buf.trim().length > 0) {

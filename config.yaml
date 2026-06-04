@@ -10,9 +10,6 @@ model: sonnet
 # Web server port.
 port: 3000
 
-# Variant the terminal chat opens by default when none is named.
-default_variant: muppet
-
 # Branches no variant may commit or push to.
 protected_branches:
   - main
