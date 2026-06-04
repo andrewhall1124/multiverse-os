@@ -1,9 +1,10 @@
 // Renders the chat log for the active variant.
-import { sessions, ui, type LogItem } from "../state.js";
+
 import { logEl } from "../dom.js";
 import { renderMd } from "../markdown.js";
-import { buildToolChip } from "./toolchip.js";
+import { type LogItem, sessions, ui } from "../state.js";
 import { buildInputCard } from "../ui/inputcard.js";
+import { buildToolChip } from "./toolchip.js";
 
 export function appendNode(m: LogItem) {
   if ("kind" in m && m.kind === "tool") {
@@ -13,13 +14,13 @@ export function appendNode(m: LogItem) {
   }
   if ("kind" in m && m.kind === "note") {
     const n = document.createElement("div");
-    n.className = "note " + m.noteKind;
+    n.className = `note ${m.noteKind}`;
     n.textContent = m.text;
     logEl.appendChild(n);
   } else {
     const bubble = m as Extract<LogItem, { who: string }>;
     const row = document.createElement("div");
-    row.className = "row " + bubble.who;
+    row.className = `row ${bubble.who}`;
 
     const b = document.createElement("div");
     b.className = "bubble";
@@ -42,7 +43,7 @@ export function renderLog() {
   if (!s || (s.messages.length === 0 && !s.pendingInput)) {
     const e = document.createElement("div");
     e.id = "empty";
-    e.textContent = "Say hi to " + (s ? s.meta.name : "Andrew") + " — give them a task.";
+    e.textContent = `Say hi to ${s ? s.meta.name : "Andrew"} — give them a task.`;
     logEl.appendChild(e);
     return;
   }

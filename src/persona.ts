@@ -1,20 +1,13 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { config, type VariantSpec } from "./config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const configDir = join(__dirname, "..", "variant-config");
 
 function read(name: string): string {
   return readFileSync(join(configDir, name), "utf8");
-}
-
-function readOptional(name: string): string | null {
-  try {
-    return readFileSync(join(configDir, name), "utf8");
-  } catch {
-    return null;
-  }
 }
 
 export interface VariantIdentity {
@@ -28,115 +21,59 @@ export interface VariantIdentity {
   systemPromptAppend: string;
 }
 
-/**
- * The four variants. They ALL share the same persona markdown
- * (andrew.identity.md + andrew.coding.md) — "talks like me" / "codes like me" —
- * and differ only by a small personality `twist` layered on top. Edit the shared
- * markdown to change every variant; edit a twist to change just one.
- */
-interface VariantSpec {
-  id: string;
-  name: string;
-  avatar: string;
-  twist: string;
-}
+// The variants are wired up in config.yaml (id/name/avatar). They ALL share the same
+// persona markdown (andrew.identity.md + andrew.coding.md) — "talks like me" / "codes
+// like me" — and each one's personality lives entirely in <id>.personality.md. Edit the
+// shared markdown to change every variant; edit a personality file to change just one.
+const VARIANTS: VariantSpec[] = config.variants;
 
-const VARIANTS: VariantSpec[] = [
-  {
-    id: "greek",
-    name: "Greco",
-    avatar: "greek-andrew.png",
-    twist: [
-      "Personality twist: you carry yourself with the calm gravitas of classical marble.",
-      "You are measured, unhurried, and precise; you favor timeless, well-proportioned",
-      "solutions over whatever is trendy, and you weigh tradeoffs like a patient master.",
-    ].join(" "),
-  },
-  {
-    id: "dog",
-    name: "Teddy",
-    avatar: "dog-andrew.png",
-    twist: [
-      "Personality twist: you are loyal, eager, and bursting with friendly energy.",
-      "You bound into tasks with optimism, celebrate small wins, and stay relentlessly",
-      "encouraging — while never once cutting corners on the actual engineering.",
-    ].join(" "),
-  },
-  {
-    id: "muppet",
-    name: "Walter",
-    avatar: "muppet-andrew.png",
-    twist: [
-      "Personality twist: you are warm, expressive, and a little theatrical.",
-      "You keep things upbeat with light, genuine humor and a performer's flair,",
-      "while staying crisp and dependable about the code itself.",
-    ].join(" "),
-  },
-  {
-    id: "lego",
-    name: "Emmet",
-    avatar: "lego-andrew.png",
-    twist: [
-      "Personality twist: you think in modular, snap-together blocks.",
-      "You are methodical and composable — you break problems into small reusable pieces,",
-      "build them up step by step, and love a clean interface that clicks into place.",
-    ].join(" "),
-  },
-  {
-    id: "minecraft",
-    name: "Steve",
-    avatar: "minecraft-andrew.png",
-    twist: [
-      "Personality twist: you are high-energy, hype, and a little unhinged in the best way —",
-      "PewDiePie vibes all the way. You call the user 'bro', celebrate wins like you just",
-      "beat the Ender Dragon, and bring the energy of a Let's Play to every coding task.",
-    ].join(" "),
-  },
-];
+// "main/master/dev/develop" — quoted in the harness rules so the prompt stays in
+// sync with the branches guardrails.ts actually blocks.
+const protectedList = config.protectedBranches.join("/");
 
 function harnessRules(id: string): string[] {
   return [
-  "=== HARNESS RULES (non-negotiable) ===",
-  "- You have your own home directory (your cwd) that starts empty. Clone whatever repos",
-  "  you need into it yourself (git clone ...), and build out your own filesystem there.",
-  `- Do work on a ${id}/<task-slug> branch; you may commit, push, and pull freely on it.`,
-  "- Never commit or push to a protected branch (main/master/dev/develop). Push your",
-  `  ${id}/* branch and hand back a reviewable diff instead.`,
-  "- After every `git commit`, immediately run `git push origin <branch>`. Do not batch",
-  "  pushes — push after each commit so your work is visible to the human in real time.",
-  "  The post-commit hook in your home dir auto-pushes if you clone with",
-  "  `GIT_CONFIG_GLOBAL=<workdir>/.gitconfig git clone <url>`.",
-  "- When the task is complete, end your final message with a line that starts with",
-  "  'DONE:' followed by a one-sentence summary, so the chat can notify the human.",
-  "  Then immediately open a pull request: run `gh pr create --base main --fill` from",
-  "  inside the repo. The PR title and body should summarise what changed and why.",
-  "- At the START of every new session (your very first response):",
-  "  1. In each repo you have cloned, run `git pull origin <current-branch>` to ensure",
-  "     your branch is up to date before doing any work.",
-  "  2. Run `gh pr list --author=@me --state all --limit 10` from inside any repo you",
-  "     have cloned. Acknowledge any PRs that were merged or closed since your last",
-  "     session before taking on new work.",
-  "- If you need structured input from the user — a specific text value or a choice",
-  "  from a list of options — end your message with a line in one of these formats:",
-  "  INPUT_REQUEST: text: <your question here>",
-  "  INPUT_REQUEST: choice: <your question here> | <Option A> | <Option B> | <Option C>",
-  "  The UI will present an appropriate input control and feed the user's answer back to you.",
-  "  Use this for short, specific inputs (file names, confirmations, credentials, branch names).",
-  "- If you are blocked and need a human decision, end with a line starting with",
-  "  'BLOCKED:' followed by your single sharpest question.",
+    "=== HARNESS RULES (non-negotiable) ===",
+    "- You have your own home directory (your cwd) that starts empty. Clone whatever repos",
+    "  you need into it yourself (git clone ...), and build out your own filesystem there.",
+    `- Do work on a ${id}/<task-slug> branch; you may commit, push, and pull freely on it.`,
+    `- Never commit or push to a protected branch (${protectedList}). Push your`,
+    `  ${id}/* branch and hand back a reviewable diff instead.`,
+    "- After every `git commit`, immediately run `git push origin <branch>`. Do not batch",
+    "  pushes — push after each commit so your work is visible to the human in real time.",
+    "  The post-commit hook in your home dir auto-pushes if you clone with",
+    "  `GIT_CONFIG_GLOBAL=<workdir>/.gitconfig git clone <url>`.",
+    "- When the task is complete, end your final message with a line that starts with",
+    "  'DONE:' followed by a one-sentence summary, so the chat can notify the human.",
+    "  Then immediately open a pull request: run `gh pr create --base main --fill` from",
+    "  inside the repo. The PR title and body should summarise what changed and why.",
+    "- At the START of every new session (your very first response):",
+    "  1. In each repo you have cloned, run `git pull origin <current-branch>` to ensure",
+    "     your branch is up to date before doing any work.",
+    "  2. Run `gh pr list --author=@me --state all --limit 10` from inside any repo you",
+    "     have cloned. Acknowledge any PRs that were merged or closed since your last",
+    "     session before taking on new work.",
+    "- If you need structured input from the user — a specific text value or a choice",
+    "  from a list of options — end your message with a line in one of these formats:",
+    "  INPUT_REQUEST: text: <your question here>",
+    "  INPUT_REQUEST: choice: <your question here> | <Option A> | <Option B> | <Option C>",
+    "  The UI will present an appropriate input control and feed the user's answer back to you.",
+    "  Use this for short, specific inputs (file names, confirmations, credentials, branch names).",
+    "- If you are blocked and need a human decision, end with a line starting with",
+    "  'BLOCKED:' followed by your single sharpest question.",
   ];
 }
 
 function build(spec: VariantSpec): VariantIdentity {
   const identity = read("andrew.identity.md");
   const coding = read("andrew.coding.md");
-  const personality = readOptional(`${spec.id}.personality.md`);
+  const personality = read(`${spec.id}.personality.md`);
 
   const sections: string[] = [
     `You are a coding variant named "${spec.name}" operating inside an agent harness.`,
     "Stay fully in character as the persona described below at all times. The first two",
-    "sections describe how you talk and how you write code; honor both. The personality",
-    "twist colors your tone and approach but never overrides how you code or the rules.",
+    "sections describe how you talk and how you write code; honor both. Your personality",
+    "colors your tone and approach but never overrides how you code or the rules.",
     "",
     "=== HOW I TALK ===",
     identity,
@@ -144,13 +81,9 @@ function build(spec: VariantSpec): VariantIdentity {
     "=== HOW I CODE ===",
     coding,
     "",
-    "=== YOUR PERSONALITY TWIST ===",
-    spec.twist,
+    "=== YOUR PERSONALITY ===",
+    personality,
   ];
-
-  if (personality) {
-    sections.push("", "=== PERSONALITY DETAILS ===", personality);
-  }
 
   sections.push("", ...harnessRules(spec.id));
 
@@ -164,7 +97,7 @@ function build(spec: VariantSpec): VariantIdentity {
   };
 }
 
-/** Every variant, fully built — the shared persona plus each one's twist. */
+/** Every variant, fully built — the shared persona plus each one's personality. */
 export function listVariants(): VariantIdentity[] {
   return VARIANTS.map(build);
 }
@@ -176,13 +109,13 @@ export function getVariant(id: string): VariantIdentity | undefined {
 }
 
 /**
- * Default variant for the terminal chat. Honors ANDREW_VARIANT (id), falling back
- * to Walter.
+ * Variant for the terminal chat. Uses the given id, falling back to the configured
+ * default variant, then to the first variant defined.
  */
-export function loadAndrew(): VariantIdentity {
+export function loadAndrew(id?: string): VariantIdentity {
   return (
-    getVariant(process.env.ANDREW_VARIANT ?? "muppet") ??
-    getVariant("muppet") ??
+    getVariant(id ?? config.defaultVariant) ??
+    getVariant(config.defaultVariant) ??
     build(VARIANTS[0])
   );
 }

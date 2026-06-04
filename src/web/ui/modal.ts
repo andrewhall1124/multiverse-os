@@ -1,8 +1,9 @@
 // The "clear history" confirmation modal. Self-wires its triggers on load.
-import { sessions, ui } from "../state.js";
-import { clearBtn, modalOverlay, modalBody, modalCancel, modalConfirm } from "../dom.js";
-import { connect } from "../socket.js";
+
+import { clearBtn, modalBody, modalCancel, modalConfirm, modalOverlay } from "../dom.js";
 import { renderLog } from "../render/log.js";
+import { connect } from "../socket.js";
+import { sessions, ui } from "../state.js";
 
 function closeModal() {
   modalOverlay.classList.remove("open");

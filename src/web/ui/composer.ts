@@ -1,10 +1,11 @@
 // The message composer: send / stop button state, interrupt, and submit (with pasted-text
 // and uploaded-file folding). Self-wires the form, Enter-to-send, and textarea autosize.
-import { sessions, ui, pendingAttachments } from "../state.js";
+
 import { form, input, sendBtn } from "../dom.js";
-import { setSidebarState } from "./sidebar.js";
 import { appendNode } from "../render/log.js";
-import { getAttachments, getPastes, clearAttachments, renderAttachments } from "./attachments.js";
+import { pendingAttachments, sessions, ui } from "../state.js";
+import { clearAttachments, getAttachments, getPastes, renderAttachments } from "./attachments.js";
+import { setSidebarState } from "./sidebar.js";
 
 export function setWorking(id: string, working: boolean) {
   const s = sessions[id];
@@ -25,7 +26,7 @@ export function setWorking(id: string, working: boolean) {
 
 export function interrupt() {
   const s = ui.activeId ? sessions[ui.activeId] : null;
-  if (!s || !s.live || !s.ws || s.ws.readyState !== WebSocket.OPEN) return;
+  if (!s?.live || !s.ws || s.ws.readyState !== WebSocket.OPEN) return;
   sendBtn.disabled = true;
   s.ws.send(JSON.stringify({ kind: "interrupt" }));
 }
@@ -51,15 +52,17 @@ export function submit() {
 
   if (pastes.length > 0) {
     const pasteBlocks = pastes
-      .map((a, i) => (pastes.length === 1 ? `[Pasted text:\n${a.text}]` : `[Pasted text ${i + 1}:\n${a.text}]`))
+      .map((a, i) =>
+        pastes.length === 1 ? `[Pasted text:\n${a.text}]` : `[Pasted text ${i + 1}:\n${a.text}]`,
+      )
       .join("\n\n");
-    text = text ? pasteBlocks + "\n\n" + text : pasteBlocks;
+    text = text ? `${pasteBlocks}\n\n${text}` : pasteBlocks;
   }
 
   if (attachments.length > 0) {
     const fileList = attachments.map((a) => a.path).join("\n");
     const note = `[Attached files — available in your workdir:\n${fileList}]`;
-    text = text ? note + "\n\n" + text : note;
+    text = text ? `${note}\n\n${text}` : note;
     pendingAttachments[ui.activeId!] = [];
     renderAttachments();
   }
@@ -85,5 +88,5 @@ input.addEventListener("keydown", (e) => {
 });
 input.addEventListener("input", () => {
   input.style.height = "auto";
-  input.style.height = Math.min(input.scrollHeight, 160) + "px";
+  input.style.height = `${Math.min(input.scrollHeight, 160)}px`;
 });

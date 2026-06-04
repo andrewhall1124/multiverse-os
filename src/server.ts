@@ -1,20 +1,21 @@
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dirname, join, basename } from "node:path";
-import type { ServerWebSocket } from "bun";
 import { getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
-import type { VariantIdentity } from "./persona.js";
-import { listVariants, getVariant } from "./persona.js";
-import { Variant } from "./variant.js";
-import { ensureVariantHome } from "./workspace.js";
+import type { ServerWebSocket } from "bun";
+import { config, requireAuth } from "./config.js";
 import {
-  loadHistory,
   appendMessage,
-  formatTranscript,
   clearHistory,
+  formatTranscript,
+  loadHistory,
   loadSessionId,
   saveSessionId,
 } from "./history.js";
+import type { VariantIdentity } from "./persona.js";
+import { getVariant, listVariants } from "./persona.js";
+import { Variant } from "./variant.js";
+import { ensureVariantHome } from "./workspace.js";
 
 /**
  * Web chat UI for the variants.
@@ -40,18 +41,6 @@ const webDir = join(__dirname, "web");
 // and map to their `.ts` source here.
 const tsTranspiler = new Bun.Transpiler({ loader: "ts" });
 
-const multiverseRoot = process.env.MULTIVERSE_ROOT ?? "/Users/andrew/MultiverseOS";
-const model = process.env.ANDREW_MODEL ?? "sonnet";
-const port = Number(process.env.PORT ?? 3000);
-
-if (!process.env.CLAUDE_CODE_OAUTH_TOKEN && !process.env.ANTHROPIC_API_KEY) {
-  console.error(
-    "Set CLAUDE_CODE_OAUTH_TOKEN (run `claude setup-token` to use your Claude\n" +
-      "subscription) or ANTHROPIC_API_KEY (pay-as-you-go). See .env.example.",
-  );
-  process.exit(1);
-}
-
 const html = readFileSync(join(__dirname, "web", "index.html"), "utf8");
 
 // Public summary of each variant for the sidebar (no system prompt leaked).
@@ -76,7 +65,10 @@ const sessions = new Map<ServerWebSocket<WSData>, Variant>();
 const assistantBuffers = new Map<ServerWebSocket<WSData>, string>();
 // In-flight tool calls awaiting their result, so we can persist one combined record
 // (call + result) per invocation, keyed by tool_use_id.
-const pendingTools = new Map<ServerWebSocket<WSData>, Map<string, { tool: string; summary: string }>>();
+const pendingTools = new Map<
+  ServerWebSocket<WSData>,
+  Map<string, { tool: string; summary: string }>
+>();
 // The one socket currently allowed to run each variant. A variant has a single home dir,
 // so two live sessions for the same variant would run git in the same working copy at once.
 // Opening a new session for a variant takes over and evicts any prior one.
@@ -84,7 +76,10 @@ const variantOwners = new Map<string, ServerWebSocket<WSData>>();
 
 // True if the variant's last SDK session is still on disk and can be resumed (so we
 // continue the real conversation instead of replaying a transcript into the prompt).
-async function resumableSessionId(identity: VariantIdentity, workdir: string): Promise<string | undefined> {
+async function resumableSessionId(
+  identity: VariantIdentity,
+  workdir: string,
+): Promise<string | undefined> {
   const saved = loadSessionId(identity.id);
   if (!saved) return undefined;
   try {
@@ -112,7 +107,9 @@ async function spawnVariant(ws: ServerWebSocket<WSData>, identity: VariantIdenti
     assistantBuffers.delete(prevOwner);
     pendingTools.delete(prevOwner);
     try {
-      prevOwner.send(JSON.stringify({ kind: "error", error: "Session taken over by a newer tab." }));
+      prevOwner.send(
+        JSON.stringify({ kind: "error", error: "Session taken over by a newer tab." }),
+      );
     } catch {
       // socket already gone
     }
@@ -138,7 +135,11 @@ async function spawnVariant(ws: ServerWebSocket<WSData>, identity: VariantIdenti
         }
       : identity;
 
-  const variant = new Variant(contextualIdentity, { workdir, model, resumeSessionId });
+  const variant = new Variant(contextualIdentity, {
+    workdir,
+    model: config.model,
+    resumeSessionId,
+  });
   sessions.set(ws, variant);
   assistantBuffers.set(ws, "");
   pendingTools.set(ws, new Map());
@@ -187,20 +188,20 @@ async function spawnVariant(ws: ServerWebSocket<WSData>, identity: VariantIdenti
           }
           assistantBuffers.set(ws, "");
         } else if (e.kind === "input_request") {
-          const optionsText = e.options?.length ? " | " + e.options.join(" | ") : "";
+          const optionsText = e.options?.length ? ` | ${e.options.join(" | ")}` : "";
           appendMessage(identity.id, {
             role: "note",
             noteKind: "input_request",
-            text: "❓ " + e.prompt + optionsText,
+            text: `❓ ${e.prompt}${optionsText}`,
             ts: Date.now(),
           });
         } else if (e.kind === "done" || e.kind === "blocked" || e.kind === "error") {
           const text =
             e.kind === "done"
-              ? "✅ " + e.summary
+              ? `✅ ${e.summary}`
               : e.kind === "blocked"
-                ? "⚠️ blocked: " + e.question
-                : "❌ " + e.error;
+                ? `⚠️ blocked: ${e.question}`
+                : `❌ ${e.error}`;
           appendMessage(identity.id, {
             role: "note",
             noteKind: e.kind,
@@ -229,169 +230,183 @@ async function liveVariant(ws: ServerWebSocket<WSData>): Promise<Variant> {
   return sessions.get(ws)!;
 }
 
-const server = Bun.serve<WSData>({
-  port,
-  async fetch(req, server) {
-    const url = new URL(req.url);
+export function runWeb(): void {
+  requireAuth();
 
-    if (url.pathname === "/ws") {
-      const id = url.searchParams.get("variant") ?? "muppet";
-      // Hand the chosen variant id to the websocket handler via upgrade data.
-      return server.upgrade(req, { data: { id } })
-        ? undefined
-        : new Response("websocket upgrade failed", { status: 426 });
-    }
+  const server = Bun.serve<WSData>({
+    port: config.port,
+    async fetch(req, server) {
+      const url = new URL(req.url);
 
-    if (url.pathname === "/" || url.pathname === "/index.html") {
-      return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
-    }
+      if (url.pathname === "/ws") {
+        const id = url.searchParams.get("variant") ?? "muppet";
+        // Hand the chosen variant id to the websocket handler via upgrade data.
+        return server.upgrade(req, { data: { id } })
+          ? undefined
+          : new Response("websocket upgrade failed", { status: 426 });
+      }
 
-    if (url.pathname === "/logo.svg") {
-      return new Response(Bun.file(join(__dirname, "web", "logo.svg")), {
-        headers: { "content-type": "image/svg+xml; charset=utf-8" },
-      });
-    }
+      if (url.pathname === "/" || url.pathname === "/index.html") {
+        return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
+      }
 
-    // Client modules and styles: /web/<path>.js transpiles src/web/<path>.ts; .css served as-is.
-    if (url.pathname.startsWith("/web/") && !url.pathname.includes("..")) {
-      const rel = url.pathname.slice("/web/".length);
-      if (rel.endsWith(".css")) {
-        const full = join(webDir, rel);
-        if (existsSync(full)) {
-          return new Response(Bun.file(full), { headers: { "content-type": "text/css; charset=utf-8" } });
+      if (url.pathname === "/logo.svg") {
+        return new Response(Bun.file(join(__dirname, "web", "logo.svg")), {
+          headers: { "content-type": "image/svg+xml; charset=utf-8" },
+        });
+      }
+
+      // Client modules and styles: /web/<path>.js transpiles src/web/<path>.ts; .css served as-is.
+      if (url.pathname.startsWith("/web/") && !url.pathname.includes("..")) {
+        const rel = url.pathname.slice("/web/".length);
+        if (rel.endsWith(".css")) {
+          const full = join(webDir, rel);
+          if (existsSync(full)) {
+            return new Response(Bun.file(full), {
+              headers: { "content-type": "text/css; charset=utf-8" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        }
+        if (rel.endsWith(".js")) {
+          const tsPath = join(webDir, rel.replace(/\.js$/, ".ts"));
+          if (existsSync(tsPath)) {
+            const js = tsTranspiler.transformSync(readFileSync(tsPath, "utf8"));
+            return new Response(js, {
+              headers: { "content-type": "application/javascript; charset=utf-8" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        }
+      }
+
+      if (url.pathname === "/variants") {
+        return Response.json(variantList);
+      }
+
+      if (url.pathname === "/upload" && req.method === "POST") {
+        const variantId = url.searchParams.get("variant") ?? "muppet";
+        if (!getVariant(variantId)) return new Response("variant not found", { status: 404 });
+        const workdir = ensureVariantHome(variantId);
+        const uploadsDir = join(workdir, "uploads");
+        mkdirSync(uploadsDir, { recursive: true });
+
+        let form: Awaited<ReturnType<typeof req.formData>>;
+        try {
+          form = await req.formData();
+        } catch {
+          return new Response("invalid multipart data", { status: 400 });
+        }
+        const uploaded = form.get("file");
+        if (!uploaded || !(uploaded instanceof File))
+          return new Response("no file field", { status: 400 });
+
+        const safeName = basename(uploaded.name).replace(/[^a-zA-Z0-9._-]/g, "_") || "file";
+        const destPath = join(uploadsDir, safeName);
+        writeFileSync(destPath, Buffer.from(await uploaded.arrayBuffer()));
+        return Response.json({ path: destPath, name: uploaded.name, size: uploaded.size });
+      }
+
+      if (url.pathname.startsWith("/pics/")) {
+        // basename() strips any path traversal; only serve from picsDir.
+        const file = basename(url.pathname.slice("/pics/".length));
+        const full = join(picsDir, file);
+        const ext = file.split(".").pop()?.toLowerCase() ?? "";
+        if (existsSync(full) && PIC_TYPES[ext]) {
+          return new Response(Bun.file(full), { headers: { "content-type": PIC_TYPES[ext] } });
         }
         return new Response("not found", { status: 404 });
       }
-      if (rel.endsWith(".js")) {
-        const tsPath = join(webDir, rel.replace(/\.js$/, ".ts"));
-        if (existsSync(tsPath)) {
-          const js = tsTranspiler.transformSync(readFileSync(tsPath, "utf8"));
-          return new Response(js, { headers: { "content-type": "application/javascript; charset=utf-8" } });
+
+      if (req.method === "DELETE" && url.pathname.startsWith("/history/")) {
+        const variantId = url.pathname.slice("/history/".length);
+        if (!variantId || !listVariants().some((v) => v.id === variantId)) {
+          return new Response("not found", { status: 404 });
         }
-        return new Response("not found", { status: 404 });
+        clearHistory(variantId);
+        return new Response(null, { status: 204 });
       }
-    }
 
-    if (url.pathname === "/variants") {
-      return Response.json(variantList);
-    }
-
-    if (url.pathname === "/upload" && req.method === "POST") {
-      const variantId = url.searchParams.get("variant") ?? "muppet";
-      if (!getVariant(variantId)) return new Response("variant not found", { status: 404 });
-      const workdir = ensureVariantHome(variantId);
-      const uploadsDir = join(workdir, "uploads");
-      mkdirSync(uploadsDir, { recursive: true });
-
-      let form: Awaited<ReturnType<typeof req.formData>>;
-      try { form = await req.formData(); } catch {
-        return new Response("invalid multipart data", { status: 400 });
-      }
-      const uploaded = form.get("file");
-      if (!uploaded || !(uploaded instanceof File)) return new Response("no file field", { status: 400 });
-
-      const safeName = basename(uploaded.name).replace(/[^a-zA-Z0-9._-]/g, "_") || "file";
-      const destPath = join(uploadsDir, safeName);
-      writeFileSync(destPath, Buffer.from(await uploaded.arrayBuffer()));
-      return Response.json({ path: destPath, name: uploaded.name, size: uploaded.size });
-    }
-
-    if (url.pathname.startsWith("/pics/")) {
-      // basename() strips any path traversal; only serve from picsDir.
-      const file = basename(url.pathname.slice("/pics/".length));
-      const full = join(picsDir, file);
-      const ext = file.split(".").pop()?.toLowerCase() ?? "";
-      if (existsSync(full) && PIC_TYPES[ext]) {
-        return new Response(Bun.file(full), { headers: { "content-type": PIC_TYPES[ext] } });
-      }
       return new Response("not found", { status: 404 });
-    }
-
-    if (req.method === "DELETE" && url.pathname.startsWith("/history/")) {
-      const variantId = url.pathname.slice("/history/".length);
-      if (!variantId || !listVariants().some((v) => v.id === variantId)) {
-        return new Response("not found", { status: 404 });
-      }
-      clearHistory(variantId);
-      return new Response(null, { status: 204 });
-    }
-
-    return new Response("not found", { status: 404 });
-  },
-  websocket: {
-    open(ws) {
-      const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
-      const workdir = ensureVariantHome(identity.id);
-
-      ws.send(
-        JSON.stringify({
-          kind: "meta",
-          id: identity.id,
-          name: identity.name,
-          avatar: `/pics/${identity.avatar}`,
-          workdir,
-        }),
-      );
-
-      const history = loadHistory(identity.id);
-      if (history.length > 0) {
-        ws.send(JSON.stringify({ kind: "history", messages: history }));
-      }
-
-      spawnVariant(ws, identity).catch((err) =>
-        ws.send(
-          JSON.stringify({ kind: "error", error: err instanceof Error ? err.message : String(err) }),
-        ),
-      );
     },
-    async message(ws, raw) {
-      const text = (typeof raw === "string" ? raw : raw.toString()).trim();
-      if (!text) return;
-
-      // Parse control messages first; a non-JSON body is just a normal chat message.
-      let parsed: { kind?: string; response?: unknown } | null = null;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = null;
-      }
-
-      if (parsed?.kind === "input_response" && typeof parsed.response === "string") {
-        const response = parsed.response.trim();
-        if (!response) return;
-        appendMessage(ws.data.id, { role: "user", text: response, ts: Date.now() });
-        (await liveVariant(ws)).send(response);
-        return;
-      }
-      if (parsed?.kind === "interrupt") {
+    websocket: {
+      open(ws) {
         const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
-        // Flush any partial assistant response before stopping.
-        const buf = assistantBuffers.get(ws) ?? "";
-        if (buf.trim().length > 0) {
-          appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
+        const workdir = ensureVariantHome(identity.id);
+
+        ws.send(
+          JSON.stringify({
+            kind: "meta",
+            id: identity.id,
+            name: identity.name,
+            avatar: `/pics/${identity.avatar}`,
+            workdir,
+          }),
+        );
+
+        const history = loadHistory(identity.id);
+        if (history.length > 0) {
+          ws.send(JSON.stringify({ kind: "history", messages: history }));
         }
-        // Stop the current variant — this aborts the in-flight turn AND its running tools.
+
+        spawnVariant(ws, identity).catch((err) =>
+          ws.send(
+            JSON.stringify({
+              kind: "error",
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          ),
+        );
+      },
+      async message(ws, raw) {
+        const text = (typeof raw === "string" ? raw : raw.toString()).trim();
+        if (!text) return;
+
+        // Parse control messages first; a non-JSON body is just a normal chat message.
+        let parsed: { kind?: string; response?: unknown } | null = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          parsed = null;
+        }
+
+        if (parsed?.kind === "input_response" && typeof parsed.response === "string") {
+          const response = parsed.response.trim();
+          if (!response) return;
+          appendMessage(ws.data.id, { role: "user", text: response, ts: Date.now() });
+          (await liveVariant(ws)).send(response);
+          return;
+        }
+        if (parsed?.kind === "interrupt") {
+          const identity = getVariant(ws.data.id) ?? getVariant("muppet")!;
+          // Flush any partial assistant response before stopping.
+          const buf = assistantBuffers.get(ws) ?? "";
+          if (buf.trim().length > 0) {
+            appendMessage(identity.id, { role: "assistant", text: buf, ts: Date.now() });
+          }
+          // Stop the current variant — this aborts the in-flight turn AND its running tools.
+          sessions.get(ws)?.stop();
+          // Spawn a fresh variant that resumes the same session and picks up updated history.
+          await spawnVariant(ws, identity);
+          ws.send(JSON.stringify({ kind: "interrupted" }));
+          return;
+        }
+
+        appendMessage(ws.data.id, { role: "user", text, ts: Date.now() });
+        (await liveVariant(ws)).send(text);
+      },
+      close(ws) {
         sessions.get(ws)?.stop();
-        // Spawn a fresh variant that resumes the same session and picks up updated history.
-        await spawnVariant(ws, identity);
-        ws.send(JSON.stringify({ kind: "interrupted" }));
-        return;
-      }
-
-      appendMessage(ws.data.id, { role: "user", text, ts: Date.now() });
-      (await liveVariant(ws)).send(text);
+        sessions.delete(ws);
+        assistantBuffers.delete(ws);
+        pendingTools.delete(ws);
+        if (variantOwners.get(ws.data.id) === ws) variantOwners.delete(ws.data.id);
+      },
     },
-    close(ws) {
-      sessions.get(ws)?.stop();
-      sessions.delete(ws);
-      assistantBuffers.delete(ws);
-      pendingTools.delete(ws);
-      if (variantOwners.get(ws.data.id) === ws) variantOwners.delete(ws.data.id);
-    },
-  },
-});
+  });
 
-console.log(`🧬  Variants web UI`);
-console.log(`clones under: ${multiverseRoot}/<variant>`);
-console.log(`variants: ${variantList.map((v) => v.name).join(", ")}`);
-console.log(`open: http://localhost:${server.port}`);
+  console.log(`🧬  Variants web UI`);
+  console.log(`clones under: ${config.workspaceRoot}/<variant>`);
+  console.log(`variants: ${variantList.map((v) => v.name).join(", ")}`);
+  console.log(`open: http://localhost:${server.port}`);
+}

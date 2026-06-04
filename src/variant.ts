@@ -1,7 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { makeGuardrails } from "./guardrails.js";
 import type { VariantIdentity } from "./persona.js";
 import type { VariantEvent } from "./protocol.js";
-import { makeGuardrails } from "./guardrails.js";
 
 export type { VariantEvent } from "./protocol.js";
 
@@ -13,7 +13,7 @@ export type { VariantEvent } from "./protocol.js";
  *    the human's messages in as they type. That gives multi-turn memory ("message the
  *    variant like a chat app") instead of a fresh agent per message.
  *  - Filesystem isolation: each variant runs with its `cwd` set to its OWN home directory
- *    (MULTIVERSE_ROOT/<id>, just an empty dir ensured in workspace.ts). The variant clones
+ *    (workspace_root/<id>, just an empty dir ensured in workspace.ts). The variant clones
  *    whatever repos it needs there itself and works on andrew/<task-slug> branches. Spawning
  *    N variants is just N instances of this class pointed at N separate home dirs.
  *  - Async "ping me when done": the model ends with a DONE:/BLOCKED: line, which we
@@ -57,7 +57,7 @@ type SDKMsg =
 
 export class Variant {
   private queue: string[] = [];
-  private resolveNext: ((v: void) => void) | null = null;
+  private resolveNext: (() => void) | null = null;
   private closed = false;
   // Aborts the in-flight SDK query (and any tool it is running) when we stop. Without
   // this, setting `closed` only stops us feeding NEW input — the current turn, and its
@@ -225,16 +225,16 @@ export class Variant {
 // The protocol puts it as the FINAL line of the message, so we only consider the last
 // non-empty line — and we strip fenced code blocks first so a "DONE:" inside an example
 // or quoted snippet can't false-trigger.
-function parseSentinel(text: string): Extract<
-  VariantEvent,
-  { kind: "done" | "blocked" | "input_request" }
-> | null {
+function parseSentinel(
+  text: string,
+): Extract<VariantEvent, { kind: "done" | "blocked" | "input_request" }> | null {
   const line = lastNonEmptyLine(stripCodeFences(text));
   if (!line) return null;
   if (line.startsWith("DONE:")) return { kind: "done", summary: line.slice("DONE:".length).trim() };
   if (line.startsWith("BLOCKED:"))
     return { kind: "blocked", question: line.slice("BLOCKED:".length).trim() };
-  if (line.startsWith("INPUT_REQUEST:")) return parseInputRequest(line.slice("INPUT_REQUEST:".length));
+  if (line.startsWith("INPUT_REQUEST:"))
+    return parseInputRequest(line.slice("INPUT_REQUEST:".length));
   return null;
 }
 
@@ -248,7 +248,10 @@ function parseInputRequest(rest: string): Extract<VariantEvent, { kind: "input_r
   const type = trimmed.slice(0, sep).trim();
   const body = trimmed.slice(sep + 1).trim();
   if (type === "choice") {
-    const parts = body.split("|").map((s) => s.trim()).filter(Boolean);
+    const parts = body
+      .split("|")
+      .map((s) => s.trim())
+      .filter(Boolean);
     if (parts.length < 2) return null;
     const [prompt, ...options] = parts;
     return { kind: "input_request", prompt, expected: "choice", options };
@@ -285,21 +288,33 @@ function toolResultText(content: unknown): string {
 }
 
 function truncate(text: string, max: number): string {
-  return text.length > max ? text.slice(0, max) + `\n…[truncated ${text.length - max} chars]` : text;
+  return text.length > max
+    ? `${text.slice(0, max)}\n…[truncated ${text.length - max} chars]`
+    : text;
 }
 
 function toolSummary(tool: string, input: Record<string, unknown>): string {
   const str = (k: string) => String(input[k] ?? "");
   switch (tool) {
-    case "Bash": return str("command").slice(0, 80);
-    case "Read": return str("file_path");
-    case "Write": return str("file_path");
-    case "Edit": return str("file_path");
-    case "Glob": return str("pattern");
-    case "Grep": return str("pattern");
-    case "WebSearch": return str("query");
-    case "WebFetch": return str("url").slice(0, 80);
-    case "TodoWrite": return "updating todos";
-    default: return tool;
+    case "Bash":
+      return str("command").slice(0, 80);
+    case "Read":
+      return str("file_path");
+    case "Write":
+      return str("file_path");
+    case "Edit":
+      return str("file_path");
+    case "Glob":
+      return str("pattern");
+    case "Grep":
+      return str("pattern");
+    case "WebSearch":
+      return str("query");
+    case "WebFetch":
+      return str("url").slice(0, 80);
+    case "TodoWrite":
+      return "updating todos";
+    default:
+      return tool;
   }
 }

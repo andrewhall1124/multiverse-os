@@ -1,0 +1,47 @@
+# Non-secret configuration for Multiverse OS.
+# Secrets (auth tokens) live in .env — never here.
+
+# Root under which each variant gets its own home directory (workspace_root/<id>).
+workspace_root: /Users/andrew/MultiverseOS
+
+# Model for every variant: "sonnet" (cheaper) or "opus" (harder work).
+model: sonnet
+
+# Web server port.
+port: 3000
+
+# Variant the terminal chat opens by default when none is named.
+default_variant: muppet
+
+# Branches no variant may commit or push to.
+protected_branches:
+  - main
+  - master
+  - dev
+  - develop
+
+# The variants. They ALL share the same persona markdown
+# (variant-config/andrew.identity.md + andrew.coding.md); each one's personality
+# lives entirely in variant-config/<id>.personality.md. To add a variant, add an
+# entry here, a matching profile-pics/<id>-andrew.png, and a
+# variant-config/<id>.personality.md — then it shows up everywhere automatically.
+variants:
+  - id: greek
+    name: Greco
+    avatar: greek-andrew.png
+
+  - id: dog
+    name: Teddy
+    avatar: dog-andrew.png
+
+  - id: muppet
+    name: Walter
+    avatar: muppet-andrew.png
+
+  - id: lego
+    name: Emmet
+    avatar: lego-andrew.png
+
+  - id: minecraft
+    name: Steve
+    avatar: minecraft-andrew.png

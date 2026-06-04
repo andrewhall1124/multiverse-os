@@ -1,7 +1,8 @@
 // Renders the structured-input card (an INPUT_REQUEST: text/choice prompt) and sends the
 // user's answer back over the socket.
-import { ui, type Session } from "../state.js";
+
 import { renderLog } from "../render/log.js";
+import { type Session, ui } from "../state.js";
 import { setWorking } from "./composer.js";
 
 export function buildInputCard(s: Session): HTMLElement {

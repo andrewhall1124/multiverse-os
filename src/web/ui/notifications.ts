@@ -1,11 +1,11 @@
 // Desktop notifications + the settings modal that manages permission. Self-wires its
 // buttons on load.
 import {
-  settingsBtn,
-  settingsOverlay,
-  settingsClose,
   notifStatusEl,
   requestNotifBtn,
+  settingsBtn,
+  settingsClose,
+  settingsOverlay,
   testNotifBtn,
 } from "../dom.js";
 
@@ -54,7 +54,7 @@ testNotifBtn.addEventListener("click", () => {
   try {
     new Notification("multiverse-os", {
       body: "Notifications are working! 🎉",
-      icon: window.location.origin + "/logo.svg",
+      icon: `${window.location.origin}/logo.svg`,
       silent: false,
     });
   } catch {

@@ -2,15 +2,15 @@
 // it. Because the event union is shared with the server (../protocol.js), adding or
 // changing an event there surfaces here as a type error.
 import type { ServerToClient, VariantMeta } from "../protocol.js";
-import { sessions, ui, type LogItem, type ToolItem } from "./state.js";
 import { logEl, sendBtn } from "./dom.js";
 import { renderMd } from "./markdown.js";
-import { renderLog, appendNode } from "./render/log.js";
+import { appendNode, renderLog } from "./render/log.js";
 import { buildToolChip } from "./render/toolchip.js";
-import { setSidebarState, selectVariant } from "./ui/sidebar.js";
+import { type LogItem, sessions, type ToolItem, ui } from "./state.js";
+import { clearActivity, updateActivity } from "./ui/activity.js";
 import { setWorking } from "./ui/composer.js";
-import { updateActivity, clearActivity } from "./ui/activity.js";
 import { notify } from "./ui/notifications.js";
+import { selectVariant, setSidebarState } from "./ui/sidebar.js";
 
 export function connect(meta: VariantMeta) {
   const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -49,7 +49,13 @@ export function connect(meta: VariantMeta) {
         if (m.role === "user") return { who: "me", text: m.text };
         if (m.role === "assistant") return { who: "andrew", text: m.text, avatar: s.meta.avatar };
         if (m.role === "tool")
-          return { kind: "tool", tool: m.tool, summary: m.summary, output: m.output, isError: m.isError };
+          return {
+            kind: "tool",
+            tool: m.tool,
+            summary: m.summary,
+            output: m.output,
+            isError: m.isError,
+          };
         return { kind: "note", noteKind: m.noteKind, text: m.text };
       });
       if (isActive) renderLog();
@@ -112,7 +118,9 @@ export function connect(meta: VariantMeta) {
     if (e.kind === "tool_result") {
       const chip = [...s.messages]
         .reverse()
-        .find((m): m is ToolItem => "kind" in m && m.kind === "tool" && m.toolUseId === e.toolUseId);
+        .find(
+          (m): m is ToolItem => "kind" in m && m.kind === "tool" && m.toolUseId === e.toolUseId,
+        );
       if (chip) {
         chip.output = e.output;
         chip.isError = e.isError;
@@ -146,10 +154,10 @@ export function connect(meta: VariantMeta) {
     if (e.kind === "done" || e.kind === "blocked" || e.kind === "error") {
       const text =
         e.kind === "done"
-          ? "✅ " + e.summary
+          ? `✅ ${e.summary}`
           : e.kind === "blocked"
-            ? "⚠️ blocked: " + e.question
-            : "❌ " + e.error;
+            ? `⚠️ blocked: ${e.question}`
+            : `❌ ${e.error}`;
       s.messages.push({ kind: "note", noteKind: e.kind, text });
       if (!isActive) s.hasDone = true;
       if (e.kind === "error") setWorking(meta.id, false);
@@ -157,7 +165,8 @@ export function connect(meta: VariantMeta) {
       if (isActive) appendNode({ kind: "note", noteKind: e.kind, text });
       const notifBody = e.kind === "done" ? e.summary : e.kind === "blocked" ? e.question : e.error;
       notify(
-        s.meta.name + (e.kind === "blocked" ? " needs input" : e.kind === "error" ? " errored" : " finished"),
+        s.meta.name +
+          (e.kind === "blocked" ? " needs input" : e.kind === "error" ? " errored" : " finished"),
         notifBody,
         s.meta.avatar,
         meta.id,

@@ -1,8 +1,9 @@
 // Two kinds of attachment: uploaded files (sent to /upload, tracked per variant) and
 // large pasted text (captured client-side as a "paste" chip). This module owns both,
 // and self-wires the attach button, file input, and paste handler on load.
-import { ui, pendingAttachments } from "../state.js";
-import { attachBtn, fileInput, attachRow, attachmentsEl, input } from "../dom.js";
+
+import { attachBtn, attachmentsEl, attachRow, fileInput, input } from "../dom.js";
+import { pendingAttachments, ui } from "../state.js";
 
 // ---- Uploaded files ----
 export function getAttachments() {
@@ -46,7 +47,10 @@ fileInput.addEventListener("change", async () => {
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const res = await fetch(`/upload?variant=${encodeURIComponent(ui.activeId)}`, { method: "POST", body: fd });
+      const res = await fetch(`/upload?variant=${encodeURIComponent(ui.activeId)}`, {
+        method: "POST",
+        body: fd,
+      });
       if (!res.ok) {
         console.error("upload failed", await res.text());
         continue;

@@ -30,7 +30,12 @@ export type PersistedMessage =
   | { role: "assistant"; text: string; ts: number }
   // One record per tool invocation: the call (tool + summary) and its truncated result.
   | { role: "tool"; tool: string; summary: string; output: string; isError: boolean; ts: number }
-  | { role: "note"; noteKind: "done" | "blocked" | "error" | "input_request"; text: string; ts: number };
+  | {
+      role: "note";
+      noteKind: "done" | "blocked" | "error" | "input_request";
+      text: string;
+      ts: number;
+    };
 
 /** Public summary of a variant, used for the sidebar and the per-connection meta event. */
 export interface VariantMeta {
@@ -47,6 +52,4 @@ export type ServerToClient =
   | { kind: "history"; messages: PersistedMessage[] };
 
 /** Control frames the client sends as JSON (normal chat messages are sent as raw text). */
-export type ClientToServer =
-  | { kind: "interrupt" }
-  | { kind: "input_response"; response: string };
+export type ClientToServer = { kind: "interrupt" } | { kind: "input_response"; response: string };

@@ -1,4 +1,5 @@
-import { resolve, relative, isAbsolute } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
+import { config } from "./config.js";
 
 /**
  * Safety rails for an autonomous variant.
@@ -25,20 +26,23 @@ import { resolve, relative, isAbsolute } from "node:path";
  *   { behavior: "allow", updatedInput }  |  { behavior: "deny", message }
  */
 
-const PROTECTED = (process.env.PROTECTED_BRANCHES ?? "main,master,dev,develop")
-  .split(",")
-  .map((b) => b.trim())
-  .filter(Boolean);
+const PROTECTED = config.protectedBranches;
 
 // Commands we never let a variant run unattended.
 const DESTRUCTIVE: { pattern: RegExp; why: string }[] = [
-  { pattern: /\brm\s+-rf?\s+(\/|~|\$HOME)/, why: "refuses to recursively delete from a root/home path" },
+  {
+    pattern: /\brm\s+-rf?\s+(\/|~|\$HOME)/,
+    why: "refuses to recursively delete from a root/home path",
+  },
   // NB: the flag boundary is a leading space, not \b — `\b` never matches before a dash,
   // which silently disabled this check before.
   { pattern: /\bgit\s+push\b.*?\s(-f|--force|--force-with-lease)\b/, why: "won't force-push" },
   { pattern: /\bgit\s+reset\s+--hard\b/, why: "won't hard-reset (destroys uncommitted work)" },
   { pattern: /\bgit\s+clean\s+-[a-z]*f/, why: "won't git-clean force (deletes untracked files)" },
-  { pattern: /\b(sudo|chmod\s+-R\s+777)\b/, why: "won't escalate privileges or wide-open permissions" },
+  {
+    pattern: /\b(sudo|chmod\s+-R\s+777)\b/,
+    why: "won't escalate privileges or wide-open permissions",
+  },
 ];
 
 // Credential env vars the variant must never read or print — blocking exfiltration of the
@@ -86,7 +90,10 @@ function pushesToProtectedBranch(cmd: string): string | null {
 function forcePushesViaRefspec(cmd: string): boolean {
   const args = gitPushArgs(cmd);
   if (args === null) return false;
-  return args.split(/\s+/).filter(Boolean).some((t) => t.startsWith("+"));
+  return args
+    .split(/\s+/)
+    .filter(Boolean)
+    .some((t) => t.startsWith("+"));
 }
 
 // Best-effort scan for Bash that WRITES to an absolute path outside the home dir:

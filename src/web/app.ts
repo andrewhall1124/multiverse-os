@@ -1,9 +1,9 @@
 // Entry point: load the variant list, build the sidebar, open a socket per variant.
 // The bare imports below pull in modules that self-wire their DOM listeners on load.
 import type { VariantMeta } from "../protocol.js";
-import { sessions } from "./state.js";
 import { variantsEl } from "./dom.js";
 import { connect } from "./socket.js";
+import { sessions } from "./state.js";
 import { selectVariant } from "./ui/sidebar.js";
 import "./markdown.js";
 import "./ui/attachments.js";

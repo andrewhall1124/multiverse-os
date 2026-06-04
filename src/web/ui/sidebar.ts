@@ -1,8 +1,18 @@
 // The variant list: status dots, ordering, and selecting the active thread.
-import { sessions, ui } from "../state.js";
-import { variantsEl, hAvatar, hName, hWorkdir, input, attachBtn, clearBtn, sendBtn } from "../dom.js";
-import { updateActivity, clearActivity } from "./activity.js";
+
+import {
+  attachBtn,
+  clearBtn,
+  hAvatar,
+  hName,
+  hWorkdir,
+  input,
+  sendBtn,
+  variantsEl,
+} from "../dom.js";
 import { renderLog } from "../render/log.js";
+import { sessions, ui } from "../state.js";
+import { clearActivity, updateActivity } from "./activity.js";
 import { clearAttachments, renderAttachments } from "./attachments.js";
 
 export function statusRank(id: string): number {
@@ -26,23 +36,31 @@ export function setSidebarState(id: string) {
   if (!node || !s) return;
   const dot = node.querySelector(".sdot");
   const label = s.working ? "working" : s.hasDone ? "done" : s.live ? "live" : "";
-  if (dot) dot.className = "sdot " + label;
+  if (dot) dot.className = `sdot ${label}`;
   const state = node.querySelector(".state");
-  if (state && state.lastChild) {
-    state.lastChild.textContent = s.working ? "working…" : s.hasDone ? "done" : s.live ? "online" : "offline";
+  if (state?.lastChild) {
+    state.lastChild.textContent = s.working
+      ? "working…"
+      : s.hasDone
+        ? "done"
+        : s.live
+          ? "online"
+          : "offline";
   }
   sortSidebar();
 }
 
 export function selectVariant(id: string) {
   ui.activeId = id;
-  document.querySelectorAll<HTMLElement>(".variant").forEach((n) => n.classList.toggle("active", n.dataset.id === id));
+  document.querySelectorAll<HTMLElement>(".variant").forEach((n) => {
+    n.classList.toggle("active", n.dataset.id === id);
+  });
   const s = sessions[id];
   s.hasDone = false;
   setSidebarState(id);
   hAvatar.src = s.meta.avatar;
   hName.textContent = s.meta.name;
-  hWorkdir.textContent = s.meta.workdir ? "working in: " + s.meta.workdir : "";
+  hWorkdir.textContent = s.meta.workdir ? `working in: ${s.meta.workdir}` : "";
   input.disabled = false;
   attachBtn.disabled = false;
   clearBtn.disabled = false;

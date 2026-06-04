@@ -1,6 +1,13 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { PersistedMessage } from "./protocol.js";
 
 export type { PersistedMessage } from "./protocol.js";
@@ -66,14 +73,16 @@ export function appendMessage(variantId: string, msg: PersistedMessage): void {
     if (existsSync(path)) {
       const raw = readFileSync(path, "utf8");
       if (raw.trim().startsWith("[")) {
-        const lines = parseContent(raw).map((m) => JSON.stringify(m)).join("\n");
-        writeFileSync(path, lines.length ? lines + "\n" : "");
+        const lines = parseContent(raw)
+          .map((m) => JSON.stringify(m))
+          .join("\n");
+        writeFileSync(path, lines.length ? `${lines}\n` : "");
       }
     }
     jsonlReady.add(path);
   }
 
-  appendFileSync(path, JSON.stringify(msg) + "\n");
+  appendFileSync(path, `${JSON.stringify(msg)}\n`);
 }
 
 export function clearHistory(variantId: string): void {

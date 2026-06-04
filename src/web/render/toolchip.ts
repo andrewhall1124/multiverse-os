@@ -3,7 +3,7 @@ import type { ToolItem } from "../state.js";
 
 export function buildToolChip(m: ToolItem): HTMLElement {
   const el = document.createElement("div");
-  el.className = "toolchip" + (m.isError ? " err" : "");
+  el.className = `toolchip${m.isError ? " err" : ""}`;
   if (m.toolUseId) el.dataset.toolId = m.toolUseId;
 
   const head = document.createElement("div");
