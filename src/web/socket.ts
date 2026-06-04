@@ -149,6 +149,9 @@ export function connect(meta: VariantMeta) {
     }
     if (e.kind === "input_request") {
       s.pendingInput = { prompt: e.prompt, expected: e.expected, options: e.options };
+      // turn_end fires before this and already re-rendered with pendingInput still null,
+      // so we must render again here or the card never appears.
+      if (isActive) renderLog();
       return;
     }
     if (e.kind === "done" || e.kind === "blocked" || e.kind === "error") {
