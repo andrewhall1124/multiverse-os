@@ -1,124 +1,133 @@
 # Andrew — Coding Habits
 
-> This file defines how Andrew *codes*. These travel with Andrew into any repo he works
-> in. If the target repo has its own CLAUDE.md, that is ALSO loaded and takes priority
-> for project-specific conventions — this file is Andrew's personal default style.
+> This file defines how Andrew *codes*. These habits travel with Andrew into any repo he
+> works in. If the target repo has its own conventions file, that is ALSO loaded and takes
+> priority for project-specific details — this file is Andrew's personal default style.
 
-## Languages & stack
+## Philosophy
 
-- Primary language: **Python** (data/quant work), **TypeScript** (multiverse-os)
-- Python package manager: **uv**
-- Data library: **Polars** (not pandas unless a dependency forces it)
-- Orchestration: **Prefect** (flows + tasks pattern)
-- TypeScript runtime: **Bun**
+Writing code balances artisanship and development speed. Code should be clean,
+well-crafted, and a pleasure to read — but not gold-plated. Start simple, ship it, then
+iterate. Favor clarity over cleverness, and prefer tools that are fast and lightweight.
 
-## Tools I reach for first
+## Architecture & language choice
 
-- Formatter + linter: **ruff** (Python), no separate black
-- Type checker: **pyright** / `bun run typecheck` (TypeScript)
-- Test runner: **pytest** (Python), **vitest** (TypeScript)
-- Before calling anything done: formatter, type checker, tests all pass.
+Decide the shape of the project before writing code.
 
-## Python code style
+- Almost anything can be built with Python and TypeScript.
+- Side projects almost never need a monorepo.
+- Write frontend applications in TypeScript.
+- If the backend is just CRUD endpoints, write the frontend and backend together in a
+  meta-framework (e.g. Next.js).
+- If the backend needs more than CRUD (e.g. data analysis), write it in Python (e.g.
+  FastAPI).
+- Use as few packages as possible.
 
-### Types
+## Python
 
-Full type annotations on every function signature. No exceptions.
+Use the newest version possible.
 
-```python
-def compute_momentum(prices: pl.DataFrame, window: int = 252) -> pl.Series:
-```
+### Tools (prefer fast and lightweight)
 
-- Use `|` union syntax (Python 3.10+), not `Optional[X]` or `Union[X, Y]`
-- Use `from typing import Protocol` for interfaces — prefer duck typing over ABC inheritance
-- Custom type aliases via `TypeAlias` to name domain concepts:
-  ```python
-  from typing import TypeAlias
-  Returns: TypeAlias = pl.DataFrame  # columns: date, ticker, return
-  ```
-- Date parameters: name them `date_` (trailing underscore) to avoid shadowing `datetime.date`
-- Always `import datetime as dt`
+- **uv** — package manager
+- **ruff** — linter + formatter
+- **ty** — type checker
 
-### Naming
+### Packages
 
-- Variables + functions: `snake_case`
-- Classes: `PascalCase`
-- Module-level constants: `UPPER_CASE`
-- Private methods: `_leading_underscore`
+- **polars** — dataframes
+- **polars-ols** — dataframe regression
+- **seaborn + matplotlib** — charts
+- **numpy** — math + linear algebra
+- **statsmodels** — regression
+- **cvxpy** — optimization
+- **fastapi** — APIs
+- **click** — CLIs
+- **dataframely** — dataframe types
 
-### Imports
+### Polars conventions
 
-Standard library → third-party → local. One blank line between groups.
-
-```python
-import datetime as dt
-import os
-
-import polars as pl
-import numpy as np
-from prefect import flow, task
-
-from pipelines.clients.alpaca import get_bars
-from pipelines.utils import get_calendar
-```
-
-### Classes vs functions
-
-- **Domain concepts** (strategies, optimizers, cost models, risk models) → classes with constructor injection:
-  ```python
-  class OptimizationStrategy(Strategy):
-      def __init__(self, optimizer: MVO, alpha_provider: AlphaProvider | None = None): ...
-  ```
-- **Orchestration** (Prefect flows/tasks, ETL steps) → plain functions with decorators
-
-### Config and settings
-
-- Module-level `UPPER_CASE` constants for non-secret config
-- `os.getenv()` + `load_dotenv()` for secrets — never hardcode
-- No Pydantic settings classes, no dataclass configs
-
-### Error handling
-
-Raise only for:
-1. Missing required environment variables or config
-2. Critical data integrity violations (`raise ValueError(...)`)
-
-Otherwise prefer null-filling, `drop_nulls()`, or returning empty DataFrames. No try/except around API calls.
-
-### Docstrings
-
-Don't write them. Type hints are the documentation.
-
-### Polars style
-
-Method chains with outer parentheses, not multiple reassignments:
+- Write transformations across multiple lines with an open parenthesis.
+- Don't redeclare variables; chain transformations instead.
 
 ```python
-result = (
-    df
+result_df = (
+    prices_df
     .filter(pl.col("date") >= start_date)
-    .join(other, on=["date", "ticker"], how="left")
-    .with_columns(
-        pl.col("return").rolling_mean(window).alias("momentum")
-    )
+    .join(other_df, on=["date", "ticker"], how="left")
+    .with_columns(pl.col("return").rolling_mean(window).alias("momentum"))
     .drop_nulls()
 )
 ```
 
-## Documentation
+### General conventions
 
-Before using any API you're uncertain about, fetch the current docs. Do not rely on
-training data for exact method signatures — APIs change.
+- Don't use funny import syntax for repository code (no `from x import *`, no gratuitous
+  aliasing).
+- Prefer `match`/`case` once an if-else chain becomes unruly.
 
-| Package | Docs |
-|---|---|
-| Polars | https://docs.pola.rs/api/python/stable/reference/ |
-| alpaca-py | https://alpaca.markets/sdks/python/ |
-| Alpaca REST API | https://docs.alpaca.markets/reference/ |
-| Anthropic SDK | https://docs.anthropic.com/en/api/getting-started |
-| Prefect | https://docs.prefect.io/v3/get-started/index |
-| psycopg (v3) | https://www.psycopg.org/psycopg3/docs/ |
-| cvxpy | https://www.cvxpy.org/api_reference/cvxpy.html |
+## TypeScript
+
+Never JavaScript.
+
+### Tools
+
+- **bun** — package manager + runtime
+- **Next.js** — meta-framework for CRUD frontend + backend
+
+## Services & infrastructure
+
+- **prefect** — orchestration
+- **postgres** — database
+- **railway** — hosting + storage buckets
+
+## Project organization
+
+- README files should include: Description, Installation, Usage, Development.
+- Applications should have a single entry point (e.g. `main.py`).
+- Packages should be either class-based (`from package import Class`) or module-based
+  (`import package as pa`) — not both.
+- Packages should have automatic documentation (i.e. docstrings).
+- Applications don't need docstrings.
+- Secrets and environment-specific variables live in a `.env` file.
+- Non-secret variables live in a `config.yaml` file.
+- Set up CI/CD with GitHub Actions.
+- Everything needed to deploy the entire application should live in the git repository
+  (except environment variables, of course).
+- I shouldn't have to restart my terminal for environment variables to update.
+
+### Comments
+
+- Inline comments clarify weird code and edge cases.
+- Single-line comments clarify steps in sequential code when necessary.
+- Block comments carry important information.
+- Comments explain the *why*, not the *what*.
+
+## Composition
+
+- Everything should always be strongly typed.
+- Introduce abstractions only once there are multiple implementations.
+- Turn code into a function once it's been rewritten multiple times — but be wary of
+  parameter hell.
+- If a function needs to be stateful, use a class.
+- Use functions for recipe-type code (a sequential process) and classes for state-driven
+  code (everything else).
+- Sequential code is really just if statements, for loops, and functions.
+- Functions should have verb names (e.g. `get_something()`).
+- Dataframes should have a `_df` suffix.
+- Keep files short — each should be either sequential or stateful code, not both.
+
+### Error handling
+
+- Rarely use try/except — only when interacting with outside code that has failed me
+  before.
+- Only raise errors for missing environment variables; everything else should raise on
+  its own.
+
+## UI/UX
+
+- Always start basic; add more later.
+- Always start black and white.
 
 ## Git & branching workflow (IMPORTANT — this is how the team stays sane)
 
@@ -150,9 +159,9 @@ integrator variant) lands it.
 
 ## Definition of done
 
-A task is done when: the change is complete and scoped to what was asked, tests + lint +
-formatter pass, I've written a one-paragraph summary of what changed and why, and I've
-left the branch ready for review.
+A task is done when: the change is complete and scoped to what was asked, the linter,
+formatter, and type checker all pass, I've written a one-paragraph summary of what changed
+and why, and I've left the branch ready for review.
 
 ## When I'm blocked
 
